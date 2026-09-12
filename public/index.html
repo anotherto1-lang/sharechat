@@ -76,10 +76,10 @@
         <span class="text-indigo-500/30 mx-1">|</span>
         
         <select id="quality-select" class="bg-transparent text-slate-300 text-xs md:text-sm outline-none cursor-pointer hover:text-white px-2 py-1 font-medium rounded-lg hover:bg-white/5 transition-colors">
-          <option value="auto" selected>✨ Qualidade: Auto</option>
+          <option value="auto">✨ Qualidade: Auto</option>
           <option value="360">360p</option>
           <option value="480">480p</option>
-          <option value="720">720p HD</option>
+          <option value="720" selected>720p HD</option>
           <option value="1080">1080p FHD</option>
           <option value="1440">1440p (2K)</option>
           <option value="2160">2160p (4K)</option>
@@ -88,8 +88,8 @@
         <span class="text-indigo-500/30 mx-1">|</span>
         
         <select id="fps-select" class="bg-transparent text-slate-300 text-xs md:text-sm outline-none cursor-pointer hover:text-white px-2 py-1 font-medium rounded-lg hover:bg-white/5 transition-colors">
-          <option value="auto" selected>✨ FPS: Auto</option>
-          <option value="30">30 FPS</option>
+          <option value="auto">✨ FPS: Auto</option>
+          <option value="30" selected>30 FPS</option>
           <option value="60">60 FPS</option>
         </select>
       </div>
@@ -564,6 +564,9 @@
       let ultimo = { bytes: 0, frames: 0, t: Date.now() };
       let bitrateAtual; // teto atual deste envio
       let decrescimosConsecutivos = 0;
+      // Médias móveis: evitam reagir a pico isolado (puxão visual) — reagem a TENDÊNCIA
+      let historicoPerda = [];
+      let historicoRTT = [];
       const minimo = 400000;
       
       const ajustar = (novoBitrate, motivo) => {
@@ -605,6 +608,13 @@
 
           if (bitrateAtual === undefined) bitrateAtual = Math.floor(taxaDeBitsIdeal * 0.8);
 
+          // ===== MÉDIAS MÓVEIS (janela 3 amostras = 9s) =====
+          // Um pico isolado de perda NÃO reduz; tendência real SIM.
+          historicoPerda.push(taxaPerda); if (historicoPerda.length > 3) historicoPerda.shift();
+          historicoRTT.push(rtt); if (historicoRTT.length > 3) historicoRTT.shift();
+          const perdaMedia = historicoPerda.reduce((a, b) => a + b, 0) / historicoPerda.length;
+          const rttMedio = historicoRTT.reduce((a, b) => a + b, 0) / historicoRTT.length;
+
           // MODO JOGO: mais tolerante — cenas de ação geram picos NATURAIS de bitrate
           // e reduzir qualidade por causa deles causa "puxões" visuais. Só reage a
           // congestionamento REAL (perda de pacotes) e volta a subir devagar.
@@ -612,15 +622,15 @@
           const limiarPerda = jogo ? 0.08 : 0.05;
           const limiarRTT = jogo ? 0.45 : 0.35;
 
-          // Regra 1: perda de pacotes alta = congestionamento real, corta rápido
-          if (taxaPerda > limiarPerda) {
+          // Regra 1: TENDÊNCIA de perda alta = congestionamento real, corta
+          if (perdaMedia > limiarPerda) {
             decrescimosConsecutivos++;
             const corte = decrescimosConsecutivos >= 2 ? 0.6 : 0.75; // segunda queda consecutiva corta mais fundo
             ajustar(Math.max(Math.floor((bitrateAtual || taxaDeBitsIdeal) * corte), minimo), `🔴 Perda ${(taxaPerda*100).toFixed(1)}% · reduzindo`);
             return;
           }
-          // Regra 2: RTT alto = caminho ruim, corta suave
-          if (rtt > limiarRTT) {
+          // Regra 2: TENDÊNCIA de RTT alto = caminho ruim, corta suave
+          if (rttMedio > limiarRTT) {
             ajustar(Math.max(Math.floor((bitrateAtual || taxaDeBitsIdeal) * 0.85), minimo), `🟡 RTT ${(rtt*1000)|0}ms · ajustando`);
             return;
           }
@@ -727,6 +737,38 @@
       controlesEnvio.set(pc, intervalo);
     }
 
+    // Vigia congelamento no receptor: se o vídeo para >3s conectado,
+    // pede keyframe (PLI) — recupera a imagem sem reconectar
+    function vigiarCongelamento(videoEl, pc, id) {
+      let ultimoFrameOk = Date.now();
+      setInterval(() => {
+        // Conexão saudável mas sem frames novos = congelou
+        if (pc.connectionState === 'connected' && videoEl.srcObject) {
+          const track = videoEl.srcObject.getVideoTracks()[0];
+          if (track && !track.muted && track.readyState === 'live') {
+            // requestVideoFrameCallback é o relógio real de frames
+            if (videoEl.requestVideoFrameCallback) {
+              const chegou = new Promise(res => {
+                const timeout = setTimeout(() => res(false), 1500);
+                videoEl.requestVideoFrameCallback(() => { clearTimeout(timeout); res(true); });
+              });
+              chegou.then(ok => {
+                if (!ok) {
+                  ultimoFrameOk = Date.now() - 4000; // força gatilho abaixo
+                  if (Date.now() - ultimoFrameOk > 3000) {
+                    forcarKeyframeReceptor(pc);
+                    ultimoFrameOk = Date.now();
+                  }
+                } else {
+                  ultimoFrameOk = Date.now();
+                }
+              });
+            }
+          }
+        }
+      }, 2000);
+    }
+
     // Espectador novo conectado = pede keyframe imediato (PLI).
     // Quem RECEBE chama generateKeyframe (Chrome 90+): a tela aparece em ~0,5s.
     function forcarKeyframeReceptor(pc) {
@@ -754,7 +796,7 @@
         // Buffer de jitter maior no receptor = absorve variações de rede sem travar
         event.receivers?.forEach(r => { if (r.jitterBufferTarget !== undefined) r.jitterBufferTarget = 500; });
         adicionarVideoUI(`Tela de Amigo`, event.streams[0], false, id);
-        if (!localStream) { monitorarPingReceptor(pc, id); forcarKeyframeReceptor(pc); } // quem assiste vê o ping
+        if (!localStream) { monitorarPingReceptor(pc, id); forcarKeyframeReceptor(pc); const cardV = document.getElementById('video-' + id); if (cardV) vigiarCongelamento(cardV.querySelector('video'), pc, id); } // quem assiste vê o ping
       };
       pc.onicecandidate = (event) => { if (event.candidate) socket.emit('ice-candidate', { target: id, candidate: event.candidate }); };
       // Reconexão automática se a conexão cair
@@ -762,6 +804,8 @@
         if (pc.connectionState === 'failed') pc.restartIce();
         // Peer sumiu por muito tempo = remove pra não deixar tela congelada
         if (pc.connectionState === 'disconnected') {
+          // 1ª tentativa: restartIce imediato (renegocia caminho sem derrubar o stream)
+          pc.restartIce();
           setTimeout(() => {
             if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
               const el = document.getElementById(`video-${id}`);
@@ -797,12 +841,13 @@
         // Buffer de jitter maior no receptor = absorve variações de rede sem travar
         event.receivers?.forEach(r => { if (r.jitterBufferTarget !== undefined) r.jitterBufferTarget = 500; });
         adicionarVideoUI(`Tela de Amigo`, event.streams[0], false, sender);
-        if (!localStream) { monitorarPingReceptor(pc, sender); forcarKeyframeReceptor(pc); } // quem assiste vê o ping
+        if (!localStream) { monitorarPingReceptor(pc, sender); forcarKeyframeReceptor(pc); const cardV = document.getElementById('video-' + sender); if (cardV) vigiarCongelamento(cardV.querySelector('video'), pc, sender); } // quem assiste vê o ping
       };
       pc.onicecandidate = (event) => { if (event.candidate) socket.emit('ice-candidate', { target: sender, candidate: event.candidate }); };
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === 'failed') pc.restartIce();
         if (pc.connectionState === 'disconnected') {
+          pc.restartIce(); // renegocia na hora, sem derrubar o stream
           setTimeout(() => {
             if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
               const el = document.getElementById(`video-${sender}`);
