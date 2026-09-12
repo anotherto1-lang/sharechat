@@ -140,9 +140,11 @@
     
     let username = "";
     let localStream = null;
-    let taxaDeBitsIdeal = 8000000; 
-    let prefersMotion = true; // Prioriza fluidez (fps) ao invés de nitidez
+    let taxaDeBitsIdeal = 4000000;
+    let fpsEscolhido = 30;
+    let resolucaoReduzida = false;
     const peers = {};
+    const controlesEnvio = new Map(); // pc -> controle adaptativo de envio
 
     const loginModal = document.getElementById('login-modal');
     const usernameInput = document.getElementById('username-input');
@@ -332,8 +334,11 @@
             height = window.screen.height;
             width = window.screen.width;
             fps = 30; // 30fps padrão no auto = menos travamento que 60fps
-            
+            fpsEscolhido = 30;
             taxaDeBitsIdeal = await detectarBitrateAutomatico();
+            // Em modo auto, trava o teto conforme o número de espectadores (upload dividido)
+            const espectadores = Object.keys(peers).length;
+            if (espectadores > 2) taxaDeBitsIdeal = Math.floor(taxaDeBitsIdeal / espectadores);
 
             dynamicConstraints = {
               video: { width: { ideal: width }, height: { ideal: height }, frameRate: { ideal: fps } },
@@ -342,6 +347,7 @@
           } else {
             fps = parseInt(fpsSelect.value);
             height = parseInt(qualitySelect.value);
+            fpsEscolhido = fps;
             width = Math.round((height * 16) / 9); 
 
             // Bitrates realistas (2 a 3x menores que antes) = transmissão fluida
@@ -418,54 +424,108 @@
           const parameters = sender.getParameters();
           if (!parameters.encodings) parameters.encodings = [{}];
           
-          // Prioriza manter rodando liso a forçar qualidade máxima
-          parameters.encodings[0].maxBitrate = taxaDeBitsIdeal;
-          parameters.encodings[0].maxFramerate = 30;
+          // Inicia um pouco abaixo do teto: sobe depois se a rede aguentar
+          parameters.encodings[0].maxBitrate = Math.floor(taxaDeBitsIdeal * 0.6);
+          parameters.encodings[0].maxFramerate = fpsEscolhido;
           parameters.encodings[0].priority = 'high';
-          parameters.degradationPreference = prefersMotion ? 'maintain-framerate' : 'balanced';
+          parameters.degradationPreference = 'maintain-framerate';
           
           sender.setParameters(parameters).catch(e => console.error(e));
         }
       });
     }
 
-    // Monitora a qualidade da rede e reduz bitrate em tempo real se começar a travar
-    function monitorarQualidade(pc) {
-      let lastStats = { bytes: 0, timestamp: 0 };
+    // ===== CONTROLE DE CONGESTIONAMENTO EM TEMPO REAL =====
+    // Observa perda de pacotes, RTT e nível do buffer (os sinais REAIS de travamento)
+    // e ajusta bitrate/fps por espectador de forma independente.
+    function monitorarQualidade(pc, alvoVideo) {
+      let ultimo = { bytes: 0, frames: 0, t: Date.now() };
+      let bitrateAtual; // teto atual deste envio
+      let decrescimosConsecutivos = 0;
+      const minimo = 400000;
+      const passoBaixa = 0.7;   // corta 30% quando detecta congestionamento
+      const passoAlta = 1.15;   // sobe 15% quando a rede está sobrando
+      
+      const ajustar = (novoBitrate, motivo) => {
+        const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+        if (!sender) return;
+        const params = sender.getParameters();
+        if (!params.encodings) params.encodings = [{}];
+        params.encodings[0].maxBitrate = novoBitrate;
+        params.encodings[0].maxFramerate = fpsEscolhido;
+        sender.setParameters(params).then(() => {
+          bitrateAtual = novoBitrate;
+          atualizarInfoOverlay(alvoVideo, motivo);
+        }).catch(() => {});
+      };
+
       const intervalo = setInterval(async () => {
-        if (pc.connectionState !== 'connected') {
-          clearInterval(intervalo);
-          return;
-        }
+        if (pc.connectionState !== 'connected') { clearInterval(intervalo); return; }
         try {
           const stats = await pc.getStats();
-          stats.forEach(report => {
-            if (report.type === 'outbound-rtp' && report.kind === 'video' && report.bytesSent !== undefined) {
-              const agora = Date.now();
-              const tempoDecorrido = (agora - lastStats.timestamp) / 1000;
-              if (tempoDecorrido >= 2) {
-                const kbps = ((report.bytesSent - lastStats.bytes) * 8) / tempoDecorrido / 1000;
-                lastStats = { bytes: report.bytesSent, timestamp: agora };
-                
-                const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-                if (sender && kbps > 0) {
-                  const params = sender.getParameters();
-                  if (!params.encodings) params.encodings = [{}];
-                  // Se está enviando menos que o alvo (rede ruim), reduz o teto pra parar de travar
-                  if (kbps < taxaDeBitsIdeal / 1000 * 0.7 && params.encodings[0].maxBitrate > 500000) {
-                    params.encodings[0].maxBitrate = Math.max(Math.floor(kbps * 1000 * 0.9), 500000);
-                    sender.setParameters(params).catch(() => {});
-                  } else if (kbps > taxaDeBitsIdeal / 1000 * 0.95) {
-                    // Sobrando rede, devolve o teto original gradualmente
-                    params.encodings[0].maxBitrate = taxaDeBitsIdeal;
-                    sender.setParameters(params).catch(() => {});
-                  }
-                }
-              }
-            }
+          let out = null, cand = null;
+          stats.forEach(r => {
+            if (r.type === 'outbound-rtp' && r.kind === 'video' && r.bytesSent !== undefined) out = r;
+            if (r.type === 'candidate-pair' && r.state === 'succeeded' && r.currentRoundTripTime !== undefined) cand = r;
           });
+          if (!out) return;
+
+          const agora = Date.now();
+          const dt = (agora - ultimo.t) / 1000;
+          if (dt < 2) return;
+
+          // Métricas-chave
+          const kbps = ((out.bytesSent - ultimo.bytes) * 8) / dt / 1000;
+          const pacotesPerdidos = out.packetsLost ?? 0;
+          const totalPacotes = out.packetsSent ?? 0;
+          const taxaPerda = totalPacotes > 0 ? pacotesPerdidos / totalPacotes : 0;
+          const rtt = cand?.currentRoundTripTime ?? 0; // segundos
+          const fpsReal = out.framesPerSecond ?? 0;
+          ultimo = { bytes: out.bytesSent, frames: out.framesEncoded, t: agora };
+
+          if (bitrateAtual === undefined) bitrateAtual = Math.floor(taxaDeBitsIdeal * 0.6);
+
+          // Regra 1: perda de pacotes alta = congestionamento real, corta rápido
+          if (taxaPerda > 0.05) {
+            decrescimosConsecutivos++;
+            ajustar(Math.max(Math.floor((bitrateAtual || taxaDeBitsIdeal) * passoBaixa), minimo), `🔴 Perda ${(taxaPerda*100).toFixed(1)}% · reduzindo`);
+            return;
+          }
+          // Regra 2: RTT alto = caminho ruim, corta suave
+          if (rtt > 0.35) {
+            ajustar(Math.max(Math.floor((bitrateAtual || taxaDeBitsIdeal) * 0.85), minimo), `🟡 RTT ${(rtt*1000)|0}ms · ajustando`);
+            return;
+          }
+          // Regra 3: FPS real desabou bem abaixo do alvo = encoder não acompanha (CPU ou rede)
+          if (fpsReal > 0 && fpsReal < fpsEscolhido * 0.6) {
+            ajustar(Math.max(Math.floor((bitrateAtual || taxaDeBitsIdeal) * 0.8), minimo), `🟡 FPS ${(fpsReal).toFixed(0)} · aliviando encoder`);
+            return;
+          }
+          decrescimosConsecutivos = 0;
+          // Regra 4: rede saudável e enviando perto do teto = sobe gradualmente
+          if (kbps > 0 && bitrateAtual < taxaDeBitsIdeal && kbps > bitrateAtual / 1000 * 0.9) {
+            ajustar(Math.min(Math.floor(bitrateAtual * passoAlta), taxaDeBitsIdeal), `🟢 Bem · subindo p/ ${(Math.min(Math.floor(bitrateAtual * passoAlta), taxaDeBitsIdeal)/1e6).toFixed(1)} Mbps`);
+          }
         } catch (e) { /* silencioso */ }
       }, 3000);
+
+      controlesEnvio.set(pc, intervalo);
+    }
+
+    // Overlay com estatísticas ao vivo no cartão do vídeo (pra quem transmite)
+    function atualizarInfoOverlay(videoEl, texto) {
+      const container = videoEl?.closest('[id^="video-"]');
+      if (!container) return;
+      let overlay = container.querySelector('.stats-overlay');
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.className = 'stats-overlay absolute top-3 left-3 bg-slate-950/80 backdrop-blur-md text-emerald-400 text-[10px] px-2.5 py-1.5 rounded-lg font-mono font-semibold border border-emerald-500/20 shadow-lg pointer-events-none z-20';
+        container.appendChild(overlay);
+      }
+      overlay.textContent = texto;
+      overlay.style.opacity = '1';
+      clearTimeout(overlay._timer);
+      overlay._timer = setTimeout(() => overlay.style.opacity = '0', 4000);
     }
 
     socket.on('user-started-share', async (id) => {
@@ -487,9 +547,22 @@
       // Reconexão automática se a conexão cair
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === 'failed') pc.restartIce();
+        // Peer sumiu por muito tempo = remove pra não deixar tela congelada
+        if (pc.connectionState === 'disconnected') {
+          setTimeout(() => {
+            if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+              const el = document.getElementById(`video-${id}`);
+              if (el) el.remove();
+              atualizarLayoutGrade();
+            }
+          }, 10000);
+        }
       };
-      if (localStream) monitorarQualidade(pc);
-      
+      if (localStream) {
+        const videoLocal = document.getElementById('video-local');
+        monitorarQualidade(pc, videoLocal);
+      }
+
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       socket.emit('offer', { target: id, offer: pc.localDescription });
@@ -513,8 +586,20 @@
       pc.onicecandidate = (event) => { if (event.candidate) socket.emit('ice-candidate', { target: sender, candidate: event.candidate }); };
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === 'failed') pc.restartIce();
+        if (pc.connectionState === 'disconnected') {
+          setTimeout(() => {
+            if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+              const el = document.getElementById(`video-${sender}`);
+              if (el) el.remove();
+              atualizarLayoutGrade();
+            }
+          }, 10000);
+        }
       };
-      if (localStream) monitorarQualidade(pc);
+      if (localStream) {
+        const videoLocal = document.getElementById('video-local');
+        monitorarQualidade(pc, videoLocal);
+      }
       
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
       const answer = await pc.createAnswer();
@@ -531,7 +616,12 @@
     });
 
     socket.on('user-stopped-share', (id) => {
-      if (peers[id]) { peers[id].close(); delete peers[id]; }
+      if (peers[id]) {
+        const itv = controlesEnvio.get(peers[id]);
+        if (itv) { clearInterval(itv); controlesEnvio.delete(peers[id]); }
+        peers[id].close();
+        delete peers[id];
+      }
       const el = document.getElementById(`video-${id}`);
       if (el) el.remove();
       atualizarLayoutGrade();
@@ -550,6 +640,30 @@
       video.playsInline = true;
       if (isLocal) video.muted = true;
       video.className = 'w-full h-full object-contain';
+
+      // BUFFER ADAPTATIVO NO RECEPTOR: se o vídeo congela (frames descartados),
+      // aumenta o alvo de jitter buffer até 1500ms pra absorver a oscilação da rede
+      if (!isLocal) {
+        let bufferAlvo = 500;
+        let ultimoCheck = { t: Date.now(), congelados: 0 };
+        const elevarBuffer = () => {
+          if (bufferAlvo >= 1500) return;
+          bufferAlvo += 250;
+          Object.values(peers).forEach(pc => {
+            pc.getReceivers?.().forEach(r => { if (r.jitterBufferTarget !== undefined) r.jitterBufferTarget = bufferAlvo; });
+          });
+        };
+        setInterval(() => {
+          const q = video.getVideoPlaybackQuality?.();
+          if (!q) return;
+          const agora = Date.now();
+          const novosCongelados = q.droppedVideoFrames - ultimoCheck.congelados;
+          const dt = (agora - ultimoCheck.t) / 1000;
+          // Mais de 10 frames jogados fora por segundo = congelamento, segura mais buffer
+          if (dt >= 5 && novosCongelados / dt > 10) elevarBuffer();
+          ultimoCheck = { t: agora, congelados: q.droppedVideoFrames };
+        }, 5000);
+      }
 
       const badgeColor = isLocal ? 'bg-indigo-500' : 'bg-rose-500';
       const label = document.createElement('div');
