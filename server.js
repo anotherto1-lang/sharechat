@@ -27,7 +27,8 @@ io.on('connection', (socket) => {
   });
 
   socket.on('chat-message', (data) => {
-    io.emit('chat-message', data);
+    // broadcast: NÃO envia de volta pra quem mandou (o cliente já mostra a própria mensagem)
+    socket.broadcast.emit('chat-message', data);
   });
 
   socket.on('start-share', () => {

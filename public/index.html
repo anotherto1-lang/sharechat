@@ -430,6 +430,9 @@
 
     socket.on('update-users', (users) => {
       participantsList.innerHTML = '';
+      // Conta nomes repetidos pra diferenciar "(Você #2)" e evitar confusão visual
+      const contagem = {};
+      users.forEach(u => { contagem[u.name] = (contagem[u.name] || 0) + 1; });
       onlineCount.innerHTML = `
         <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
         ${users.length} online
@@ -684,7 +687,18 @@
       overlay._timer = setTimeout(() => overlay.style.opacity = '0', 4000);
     }
 
+    // Fecha um peer antigo com segurança (evita duplicação de cards/monitores)
+    function fecharPeer(id) {
+      if (peers[id]) {
+        const itv = controlesEnvio.get(peers[id]);
+        if (itv) { clearInterval(itv); controlesEnvio.delete(peers[id]); }
+        try { peers[id].close(); } catch (e) {}
+        delete peers[id];
+      }
+    }
+
     socket.on('user-started-share', async (id) => {
+      fecharPeer(id); // se havia conexão antiga, limpa antes
       const pc = new RTCPeerConnection(rtcConfig);
       peers[id] = pc;
       
@@ -725,6 +739,7 @@
     });
 
     socket.on('offer', async ({ sender, offer }) => {
+      fecharPeer(sender); // evita peer duplicado em re-negociação
       const pc = new RTCPeerConnection(rtcConfig);
       peers[sender] = pc;
       
@@ -772,12 +787,7 @@
     });
 
     socket.on('user-stopped-share', (id) => {
-      if (peers[id]) {
-        const itv = controlesEnvio.get(peers[id]);
-        if (itv) { clearInterval(itv); controlesEnvio.delete(peers[id]); }
-        peers[id].close();
-        delete peers[id];
-      }
+      fecharPeer(id);
       const el = document.getElementById(`video-${id}`);
       if (el) el.remove();
       atualizarLayoutGrade();
