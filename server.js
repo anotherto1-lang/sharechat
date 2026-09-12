@@ -27,29 +27,42 @@ app.use(express.static(path.join(__dirname, 'public'), {
   }
 }));
 
-let users = [];
+// ===== SALAS PRIVADAS =====
+// Cada sala guarda usuários separados. Tudo é escopado por sala (io.to(sala).emit).
+const salas = new Map(); // sala -> [{id, name}]
+
+function emitirUsuarios(sala) {
+  const usuarios = salas.get(sala) || [];
+  io.to(sala).emit('update-users', usuarios);
+}
 
 io.on('connection', (socket) => {
+  let salaAtual = null;
 
-  socket.on('join-room', (name) => {
-    users = users.filter(u => u.id !== socket.id);
-    users.push({ id: socket.id, name: name });
-    io.emit('update-users', users);
-    // Avisa todos que um novo usuário entrou (permite quem já transmite enviar o vídeo pra ele)
-    socket.broadcast.emit('new-user', socket.id);
+  socket.on('join-room', (name, sala) => {
+    // valida/saneia o nome da sala (evita injeção estranha no hash)
+    const salaLimpa = String(sala || '').replace(/[^a-zA-Z0-9-_]/g, '').slice(0, 64) || 'lobby';
+    salaAtual = salaLimpa;
+    socket.join(salaLimpa);
+    if (!salas.has(salaLimpa)) salas.set(salaLimpa, []);
+    salas.set(salaLimpa, salas.get(salaLimpa).filter(u => u.id !== socket.id));
+    salas.get(salaLimpa).push({ id: socket.id, name: name });
+    emitirUsuarios(salaLimpa);
+    // Avisa os OUTROS da sala que alguém novo entrou (para reenviar stream pra ele)
+    socket.to(salaLimpa).emit('new-user', socket.id);
   });
 
   socket.on('chat-message', (data) => {
     // broadcast: NÃO envia de volta pra quem mandou (o cliente já mostra a própria mensagem)
-    socket.broadcast.emit('chat-message', data);
+    if (salaAtual) socket.to(salaAtual).emit('chat-message', data);
   });
 
   socket.on('start-share', () => {
-    socket.broadcast.emit('user-started-share', socket.id);
+    if (salaAtual) socket.to(salaAtual).emit('user-started-share', socket.id);
   });
 
   socket.on('stop-share', () => {
-    socket.broadcast.emit('user-stopped-share', socket.id);
+    if (salaAtual) socket.to(salaAtual).emit('user-stopped-share', socket.id);
   });
 
   // Quem já está transmitindo avisa o novo usuário que existe uma transmissão ativa
@@ -70,9 +83,12 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    users = users.filter(u => u.id !== socket.id);
-    io.emit('update-users', users);
-    socket.broadcast.emit('user-stopped-share', socket.id);
+    if (salaAtual && salas.has(salaAtual)) {
+      salas.set(salaAtual, salas.get(salaAtual).filter(u => u.id !== socket.id));
+      if (salas.get(salaAtual).length === 0) salas.delete(salaAtual);
+      else emitirUsuarios(salaAtual);
+      socket.to(salaAtual).emit('user-stopped-share', socket.id);
+    }
   });
 });
 

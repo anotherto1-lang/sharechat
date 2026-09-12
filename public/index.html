@@ -59,7 +59,11 @@
         </div>
       </div>
       <h1 class="font-display font-bold text-white tracking-tight text-lg">Share<span class="text-aurora">Chat</span></h1>
-      <span id="conn-badge" class="bg-emerald-500/15 border-emerald-500/30 text-emerald-400 text-xs px-2.5 py-1 rounded-full font-bold flex items-center gap-1.5 border">
+      <button id="sala-btn" title="Copiar link da sala" class="bg-indigo-500/15 border-indigo-500/30 text-indigo-300 text-xs px-2.5 py-1 rounded-full font-bold flex items-center gap-1.5 border hover:bg-indigo-500/25 transition-colors">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+          <span id="sala-nome">Sala</span>
+        </button>
+        <span id="conn-badge" class="bg-emerald-500/15 border-emerald-500/30 text-emerald-400 text-xs px-2.5 py-1 rounded-full font-bold flex items-center gap-1.5 border">
         <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Online
       </span>
     </div>
@@ -241,6 +245,27 @@
       connBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full ${c.ponto} animate-pulse"></span> ${c.texto}`;
     }
 
+    // Sala atual no badge + copiar link com 1 clique
+    const salaBtn = document.getElementById('sala-btn');
+    const salaNome = document.getElementById('sala-nome');
+    function atualizarSalaUI() {
+      const codigo = location.hash.replace(/^#sala-?/, '') || '—';
+      salaNome.textContent = 'Sala ' + codigo.slice(0, 8);
+    }
+    atualizarSalaUI();
+    salaBtn.addEventListener('click', async () => {
+      const link = location.href;
+      try {
+        await navigator.clipboard.writeText(link);
+        salaNome.textContent = 'Link copiado!';
+        tocarSomNotificacao();
+      } catch (e) {
+        // fallback: seleciona pro usuário copiar na mão
+        prompt('Copie o link da sala:', link);
+      }
+      setTimeout(atualizarSalaUI, 2000);
+    });
+
     socket.on('connect', () => atualizarStatusConexao('conectado'));
     socket.on('disconnect', () => atualizarStatusConexao('caiu'));
     atualizarStatusConexao('conectando');
@@ -279,9 +304,17 @@
         return;
       }
       username = name;
+      // ===== SALA PRIVADA =====
+      // Hash da URL (#sala-xyz). Vazio = gera uma sala nova.
+      // Quem tem o link entra na MESMA sala; sem link = sala própria.
+      let sala = location.hash.replace(/^#sala-?/, '').trim();
+      if (!sala) {
+        sala = Math.random().toString(36).substring(2, 8) + Math.random().toString(36).substring(2, 4);
+        history.replaceState(null, '', '#sala-' + sala);
+      }
       loginModal.style.opacity = '0';
       setTimeout(() => loginModal.style.display = 'none', 300);
-      socket.emit('join-room', username);
+      socket.emit('join-room', username, sala);
     });
 
     chatForm.addEventListener('submit', (e) => {
