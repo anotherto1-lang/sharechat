@@ -362,13 +362,13 @@
         // Downlink estimado pelo navegador
         const downlink = navigator.connection?.downlink || 10; // Mbps
         
-        // Envia no máximo ~40% da conexão pra não travar
-        let estimado = (downlink * 0.4);
+        // Envia no máximo ~45% da conexão pra não travar (AV1/VP9 aguentam mais)
+        let estimado = (downlink * 0.45);
         
         // Conexão lenta = reduz mais ainda
         if (pingMs > 150) estimado *= 0.5;
         
-        return Math.min(Math.max(estimado * 1000000, 1000000), 6000000);
+        return Math.min(Math.max(estimado * 1000000, 1000000), 8000000);
       } catch (e) {
         return 2500000;
       }
@@ -384,10 +384,10 @@
             // ===== MODO JOGO: 60fps, movimento fluido, prioriza encoder de hardware =====
             fps = 60;
             fpsEscolhido = 60;
-            height = parseInt(qualitySelect.value) > 0 ? parseInt(qualitySelect.value) : Math.min(window.screen.height, 1080);
+            height = parseInt(qualitySelect.value) > 0 ? parseInt(qualitySelect.value) : (window.screen.height >= 1080 ? 1080 : 720);
             width = Math.round((height * 16) / 9);
-            // Jogos precisam de bitrate maior pra não virar borrão em movimento
-            taxaDeBitsIdeal = height <= 720 ? 3500000 : height <= 1080 ? 5000000 : 7000000;
+            // AV1/VP9 entregam mais qualidade por bit: taxas sobem ~30% pra ficar NÍTIDO
+            taxaDeBitsIdeal = height <= 720 ? 4500000 : height <= 1080 ? 6500000 : 8500000;
             const espectadores = Object.keys(peers).length;
             if (espectadores > 2) taxaDeBitsIdeal = Math.floor(taxaDeBitsIdeal / espectadores);
 
@@ -428,13 +428,13 @@
             fpsEscolhido = fps;
             width = Math.round((height * 16) / 9); 
 
-            // Bitrates realistas (2 a 3x menores que antes) = transmissão fluida
-            if (height <= 360) taxaDeBitsIdeal = 800000;
-            else if (height <= 480) taxaDeBitsIdeal = 1200000;
-            else if (height <= 720) taxaDeBitsIdeal = 2500000;
-            else if (height <= 1080) taxaDeBitsIdeal = 4000000;
-            else if (height <= 1440) taxaDeBitsIdeal = 6000000;
-            else taxaDeBitsIdeal = 9000000;
+            // Bitrates com AV1/VP9 (+30%): mais nitidez no mesmo fluxo de rede
+            if (height <= 360) taxaDeBitsIdeal = 1000000;
+            else if (height <= 480) taxaDeBitsIdeal = 1600000;
+            else if (height <= 720) taxaDeBitsIdeal = 3200000;
+            else if (height <= 1080) taxaDeBitsIdeal = 5200000;
+            else if (height <= 1440) taxaDeBitsIdeal = 7800000;
+            else taxaDeBitsIdeal = 11000000;
 
             dynamicConstraints = {
               video: { width: { ideal: width, max: width }, height: { ideal: height, max: height }, frameRate: { ideal: fps, max: fps } },
@@ -529,14 +529,15 @@
           if (!parameters.encodings) parameters.encodings = [{}, {}, {}];
           while (parameters.encodings.length < 3) parameters.encodings.push({});
           
-          const base = Math.floor(taxaDeBitsIdeal * 0.6);
-          // Camada alta, média (metade), baixa (1/4) — receptor escolhe sozinho
+          const base = Math.floor(taxaDeBitsIdeal * 0.8);
+          // Camadas: alta inicia a 80% do teto (nítido quase de cara),
+          // média/baixa pros espectadores de internet fraca — receptor escolhe sozinho
           parameters.encodings[0].maxBitrate = base;
           parameters.encodings[0].maxFramerate = fpsEscolhido;
-          parameters.encodings[1].maxBitrate = Math.max(Math.floor(base * 0.5), 150000);
+          parameters.encodings[1].maxBitrate = Math.max(Math.floor(base * 0.6), 200000);
           parameters.encodings[1].scaleResolutionDownBy = 2;
           parameters.encodings[1].maxFramerate = fpsEscolhido;
-          parameters.encodings[2].maxBitrate = Math.max(Math.floor(base * 0.25), 80000);
+          parameters.encodings[2].maxBitrate = Math.max(Math.floor(base * 0.3), 100000);
           parameters.encodings[2].scaleResolutionDownBy = 4;
           parameters.encodings[2].maxFramerate = Math.floor(fpsEscolhido / 2);
           parameters.encodings[0].priority = 'high';
@@ -602,7 +603,7 @@
           const fpsReal = out.framesPerSecond ?? 0;
           ultimo = { bytes: out.bytesSent, frames: out.framesEncoded, t: agora };
 
-          if (bitrateAtual === undefined) bitrateAtual = Math.floor(taxaDeBitsIdeal * 0.6);
+          if (bitrateAtual === undefined) bitrateAtual = Math.floor(taxaDeBitsIdeal * 0.8);
 
           // MODO JOGO: mais tolerante — cenas de ação geram picos NATURAIS de bitrate
           // e reduzir qualidade por causa deles causa "puxões" visuais. Só reage a
