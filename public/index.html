@@ -392,12 +392,15 @@
             if (espectadores > 2) taxaDeBitsIdeal = Math.floor(taxaDeBitsIdeal / espectadores);
 
             dynamicConstraints = {
-              video: {
-                width: { ideal: width, max: width },
-                height: { ideal: height, max: height },
-                frameRate: { ideal: 60, max: 60 }
-              },
-              audio: true
+              video: { width: { ideal: width, max: width }, height: { ideal: height, max: height }, frameRate: { ideal: 60, max: 60 } },
+              // Áudio de jogo: estéreo puro, SEM echo/noise cancel (processamento destrói música)
+              audio: {
+                channelCount: 2,
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false,
+                sampleRate: 48000
+              }
             };
           } else if (qualitySelect.value === 'auto' || fpsSelect.value === 'auto') {
             height = window.screen.height;
@@ -411,7 +414,13 @@
 
             dynamicConstraints = {
               video: { width: { ideal: width }, height: { ideal: height }, frameRate: { ideal: fps } },
-              audio: true
+              audio: {
+                channelCount: 2,
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false,
+                sampleRate: 48000
+              }
             };
           } else {
             fps = parseInt(fpsSelect.value);
@@ -429,7 +438,13 @@
 
             dynamicConstraints = {
               video: { width: { ideal: width, max: width }, height: { ideal: height, max: height }, frameRate: { ideal: fps, max: fps } },
-              audio: true
+              audio: {
+                channelCount: 2,
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false,
+                sampleRate: 48000
+              }
             };
           }
 
@@ -531,7 +546,12 @@
           
           sender.setParameters(parameters).catch(e => console.error(e));
         } else {
-          pc.addTrack(track, stream);
+          // Áudio Opus: 128kbps estéreo (padrão do Discord) — música/áudio de jogo perfeitos
+          const sender = pc.addTrack(track, stream);
+          const params = sender.getParameters();
+          if (!params.encodings) params.encodings = [{}];
+          params.encodings[0].maxBitrate = 128000;
+          sender.setParameters(params).catch(() => {});
         }
       });
     }
@@ -637,6 +657,29 @@
       overlay._timer = setTimeout(() => overlay.style.opacity = '0', 4000);
     }
 
+    // Codecs preferidos em ordem: AV1 (melhor compressão ~50% vs VP8) > VP9 (~40%) > VP8 (fallback universal)
+    const CODECS_VIDEO_PREFERIDOS = ['AV1', 'VP9', 'VP8'];
+
+    // Reordena os codecs de vídeo do transceiver pra preferir AV1/VP9.
+    // Chamado ANTES de createOffer/createAnswer — afeta a negociação.
+    function preferirCodecsVideo(pc) {
+      try {
+        const caps = RTCRtpSender.getCapabilities('video');
+        if (!caps) return;
+        const prioridade = codec => {
+          const mime = codec.mimeType.toLowerCase();
+          const idx = CODECS_VIDEO_PREFERIDOS.findIndex(p => mime.includes(p.toLowerCase()));
+          return idx === -1 ? CODECS_VIDEO_PREFERIDOS.length : idx;
+        };
+        const ordenados = [...caps.codecs].sort((a, b) => prioridade(a) - prioridade(b));
+        pc.getTransceivers().forEach(t => {
+          if (t.sender?.track?.kind === 'video' || t.receiver?.track?.kind === 'video' || t.mid === null) {
+            t.setCodecPreferences?.(ordenados);
+          }
+        });
+      } catch (e) { console.warn('Codec pref falhou, usando padrão:', e.message); }
+    }
+
     // Fecha um peer antigo com segurança (evita duplicação de cards/monitores)
     function fecharPeer(id) {
       if (peers[id]) {
@@ -683,6 +726,18 @@
       controlesEnvio.set(pc, intervalo);
     }
 
+    // Espectador novo conectado = pede keyframe imediato (PLI).
+    // Quem RECEBE chama generateKeyframe (Chrome 90+): a tela aparece em ~0,5s.
+    function forcarKeyframeReceptor(pc) {
+      try {
+        pc.getReceivers?.().forEach(r => r.generateKeyframe?.());
+        // Segunda tentativa: se a conexão ainda não tinha os receivers prontos
+        setTimeout(() => {
+          if (pc.connectionState === 'connected') pc.getReceivers?.().forEach(r => r.generateKeyframe?.());
+        }, 800);
+      } catch (e) {}
+    }
+
     socket.on('user-started-share', async (id) => {
       fecharPeer(id); // se havia conexão antiga, limpa antes
       const pc = new RTCPeerConnection(rtcConfig);
@@ -698,7 +753,7 @@
         // Buffer de jitter maior no receptor = absorve variações de rede sem travar
         event.receivers?.forEach(r => { if (r.jitterBufferTarget !== undefined) r.jitterBufferTarget = 500; });
         adicionarVideoUI(`Tela de Amigo`, event.streams[0], false, id);
-        if (!localStream) monitorarPingReceptor(pc, id); // quem assiste vê o ping
+        if (!localStream) { monitorarPingReceptor(pc, id); forcarKeyframeReceptor(pc); } // quem assiste vê o ping
       };
       pc.onicecandidate = (event) => { if (event.candidate) socket.emit('ice-candidate', { target: id, candidate: event.candidate }); };
       // Reconexão automática se a conexão cair
@@ -720,6 +775,7 @@
         monitorarQualidade(pc, videoLocal);
       }
 
+      preferirCodecsVideo(pc);
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       socket.emit('offer', { target: id, offer: pc.localDescription });
@@ -740,7 +796,7 @@
         // Buffer de jitter maior no receptor = absorve variações de rede sem travar
         event.receivers?.forEach(r => { if (r.jitterBufferTarget !== undefined) r.jitterBufferTarget = 500; });
         adicionarVideoUI(`Tela de Amigo`, event.streams[0], false, sender);
-        if (!localStream) monitorarPingReceptor(pc, sender); // quem assiste vê o ping
+        if (!localStream) { monitorarPingReceptor(pc, sender); forcarKeyframeReceptor(pc); } // quem assiste vê o ping
       };
       pc.onicecandidate = (event) => { if (event.candidate) socket.emit('ice-candidate', { target: sender, candidate: event.candidate }); };
       pc.onconnectionstatechange = () => {
@@ -761,6 +817,7 @@
       }
       
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      preferirCodecsVideo(pc);
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       socket.emit('answer', { target: sender, answer: pc.localDescription });
