@@ -470,6 +470,24 @@
           shareBtn.style.boxShadow = '0 10px 30px -8px rgba(244, 63, 94, 0.55)';
           
           localStream.getVideoTracks()[0].onended = () => pararCompartilhamento();
+          
+          // Recalibra com a captura REAL: o browser pode entregar menos que o pedido
+          // (ex: pediu 1080p, janela só renderiza 900p). Ajusta o teto de bitrate
+          // pra resolução efetiva — sem desperdiçar rede com upscale.
+          const trackVideo = localStream.getVideoTracks()[0];
+          const settings = trackVideo.getSettings ? trackVideo.getSettings() : {};
+          if (settings.height && settings.frameRate) {
+            const alturaReal = settings.height;
+            const fpsReal = Math.round(settings.frameRate);
+            console.log(`Captura real: ${settings.width}x${alturaReal} @${fpsReal}fps`);
+            if (alturaReal < height) {
+              // recalcula teto com base no que existe de fato
+              if (alturaReal <= 720) taxaDeBitsIdeal = Math.min(taxaDeBitsIdeal, 3200000);
+              else if (alturaReal <= 1080) taxaDeBitsIdeal = Math.min(taxaDeBitsIdeal, 5200000);
+            }
+            if (fpsReal < fpsEscolhido) fpsEscolhido = fpsReal;
+          }
+          
           // Modo jogo: pausa a aurora de fundo (libera GPU pro encoder/jogo)
           if (isModoJogo()) document.body.classList.add('streaming-jogo');
           socket.emit('start-share');
@@ -727,6 +745,43 @@
       }, 1500);
     }
 
+    // Medidor de áudio: barrinha que pulsa com o som real chegando.
+    // Espectador vê na hora se o áudio funciona (sem precisar perguntar "tem som aí?")
+    function anexarMedidorAudio(videoEl, stream) {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const source = ctx.createMediaStreamSource(stream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+        const dados = new Uint8Array(analyser.frequencyBinCount);
+
+        const barra = document.createElement('div');
+        barra.className = 'audio-meter absolute bottom-4 right-4 flex items-end gap-[3px] h-5 pointer-events-none z-20';
+        const barras = [];
+        for (let i = 0; i < 5; i++) {
+          const b = document.createElement('div');
+          b.className = 'w-[3px] rounded-sm bg-emerald-400/80 transition-all duration-100';
+          b.style.height = '3px';
+          barra.appendChild(b);
+          barras.push(b);
+        }
+        videoEl.parentElement.appendChild(barra);
+
+        const atualizar = () => {
+          analyser.getByteFrequencyData(dados);
+          const media = dados.reduce((a, b) => a + b, 0) / dados.length / 255;
+          barras.forEach((b, i) => {
+            const nivel = Math.max(0.12, Math.min(1, media * (1.5 + i * 0.35)));
+            b.style.height = (3 + nivel * 17) + 'px';
+            b.style.opacity = media < 0.02 ? '0.25' : '1';
+          });
+          requestAnimationFrame(atualizar);
+        };
+        requestAnimationFrame(atualizar);
+      } catch (e) { /* áudio pode não existir */ }
+    }
+
     // Painel de estatísticas do streamer: bitrate/fps/latência por espectador.
     // Clique no SEU card de vídeo abre/fecha. Dados de todos os peers de envio.
     function alternarPainelStats() {
@@ -740,6 +795,7 @@
       document.body.appendChild(painel);
       const corpo = painel.querySelector('.corpo-stats');
 
+      let ultimoStats = {}; // id -> {bytes, t}
       const intervalo = setInterval(async () => {
         if (!document.getElementById('painel-streamer')) { clearInterval(intervalo); return; }
         if (!localStream) { document.getElementById('painel-streamer')?.remove(); clearInterval(intervalo); return; }
@@ -753,12 +809,17 @@
               if (r.type === 'candidate-pair' && r.state === 'succeeded' && r.currentRoundTripTime !== undefined) cand = r;
             });
             if (out) {
-              const kbps = Math.round((out.bitrate ?? 0) / 1000);
+              // Bitrate calculado na mão (out.bitrate não é confiável em todos os browsers)
+              const prev = ultimoStats[id] || { bytes: out.bytesSent, t: Date.now() };
+              const agora = Date.now();
+              const dt = (agora - prev.t) / 1000;
+              const kbps = dt >= 1 ? Math.round((out.bytesSent - prev.bytes) * 8 / dt / 1000) : 0;
+              ultimoStats[id] = { bytes: out.bytesSent, t: agora };
               const fps = out.framesPerSecond ?? 0;
               const res = out.frameWidth && out.frameHeight ? `${out.frameWidth}x${out.frameHeight}` : '?';
               const rtt = cand ? Math.round(cand.currentRoundTripTime * 1000) : '?';
               const perda = out.packetsSent ? ((out.packetsLost ?? 0) / out.packetsSent * 100).toFixed(1) : '0';
-              linhas.push(`<div class="glass-soft rounded-xl px-3 py-2 flex justify-between items-center"><span>👁 Espectador <span class="text-slate-500">${id.slice(0, 6)}</span></span><span class="text-indigo-300">${kbps}kbps · ${fps}fps · ${res} · ${rtt}ms · ${perda}%</span></div>`);
+              linhas.push(`<div class="glass-soft rounded-xl px-3 py-2 flex justify-between items-center"><span>👁 <span class="text-slate-500">${id.slice(0, 6)}</span></span><span class="text-indigo-300">${kbps}k · ${fps}fps · ${res} · ${rtt}ms · ${perda}%</span></div>`);
             }
           } catch (e) {}
         }
@@ -861,7 +922,7 @@
         // Buffer de jitter maior no receptor = absorve variações de rede sem travar
         event.receivers?.forEach(r => { if (r.jitterBufferTarget !== undefined) r.jitterBufferTarget = 500; if (r.playoutDelayHint !== undefined) r.playoutDelayHint = 0; });;
         adicionarVideoUI(`Tela de Amigo`, event.streams[0], false, id);
-        if (!localStream) { monitorarPingReceptor(pc, id); forcarKeyframeReceptor(pc); const cardV = document.getElementById('video-' + id); if (cardV) vigiarCongelamento(cardV.querySelector('video'), pc, id); vigiarMinimizacao(event.streams[0].getVideoTracks()[0], cardV); } // quem assiste vê o ping
+        if (!localStream) { monitorarPingReceptor(pc, id); forcarKeyframeReceptor(pc); const cardV = document.getElementById('video-' + id); if (cardV) vigiarCongelamento(cardV.querySelector('video'), pc, id); vigiarMinimizacao(event.streams[0].getVideoTracks()[0], cardV); anexarMedidorAudio(cardV.querySelector('video'), event.streams[0]); } // quem assiste vê o ping
       };
       pc.onicecandidate = (event) => { if (event.candidate) socket.emit('ice-candidate', { target: id, candidate: event.candidate }); };
       // Reconexão automática se a conexão cair
@@ -906,7 +967,7 @@
         // Buffer de jitter maior no receptor = absorve variações de rede sem travar
         event.receivers?.forEach(r => { if (r.jitterBufferTarget !== undefined) r.jitterBufferTarget = 500; if (r.playoutDelayHint !== undefined) r.playoutDelayHint = 0; });;
         adicionarVideoUI(`Tela de Amigo`, event.streams[0], false, sender);
-        if (!localStream) { monitorarPingReceptor(pc, sender); forcarKeyframeReceptor(pc); const cardV = document.getElementById('video-' + sender); if (cardV) vigiarCongelamento(cardV.querySelector('video'), pc, sender); vigiarMinimizacao(event.streams[0].getVideoTracks()[0], cardV); } // quem assiste vê o ping
+        if (!localStream) { monitorarPingReceptor(pc, sender); forcarKeyframeReceptor(pc); const cardV = document.getElementById('video-' + sender); if (cardV) vigiarCongelamento(cardV.querySelector('video'), pc, sender); vigiarMinimizacao(event.streams[0].getVideoTracks()[0], cardV); anexarMedidorAudio(cardV.querySelector('video'), event.streams[0]); } // quem assiste vê o ping
       };
       pc.onicecandidate = (event) => { if (event.candidate) socket.emit('ice-candidate', { target: sender, candidate: event.candidate }); };
       pc.onconnectionstatechange = () => {
