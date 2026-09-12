@@ -11,7 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   
 </head>
-<body class="bg-[#070b18] text-slate-200 h-screen flex flex-col overflow-hidden font-body selection:bg-indigo-500/30">
+<body class="fundo-app texto-tema h-screen flex flex-col overflow-hidden font-body selection:bg-indigo-500/30">
 
   <!-- FUNDO AURORA VIVO -->
   <div class="aurora"><div class="blob3"></div></div>
@@ -63,6 +63,9 @@
         <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Online
       </span>
     </div>
+      <button id="tema-btn" title="Alternar tema claro/escuro" class="w-9 h-9 glass rounded-xl flex items-center justify-center text-amber-300 hover:text-amber-200 hover:bg-white/10 transition-colors">
+          <svg class="w-4.5 h-4.5 w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 18a6 6 0 100-12 6 6 0 000 12z"/><path fill-rule="evenodd" d="M12 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm0 17a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zm9-8a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5 12a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM18.36 5.64a1 1 0 011.41 0l.71.71a1 1 0 11-1.41 1.41l-.71-.71a1 1 0 010-1.41zM6.22 17.78a1 1 0 01.99.99l0 0a1 1 0 11-1.41 1.41l-.7-.7a1 1 0 010-1.42zM19.07 17.78a1 1 0 010 1.41l-.7.7a1 1 0 11-1.42-1.4l0 0a1 1 0 01.99-1z" clip-rule="evenodd"/></svg>
+        </button>
     
     <div class="flex items-center gap-2 md:gap-3 flex-wrap">
       <!-- Painel de Controles -->
@@ -185,6 +188,46 @@
     const connBadge = document.getElementById('conn-badge');
 
     const isModoJogo = () => modoSelect.value === 'jogo';
+
+    // ===== TEMA CLARO/ESCURO =====
+    const temaBtn = document.getElementById('tema-btn');
+    function aplicarTema(tema) {
+      if (tema === 'claro') document.documentElement.setAttribute('data-tema', 'claro');
+      else document.documentElement.removeAttribute('data-tema');
+      try { localStorage.setItem('sharechat-tema', tema); } catch (e) {}
+      // Ícone: sol no escuro (pra ir pro claro), lua no claro
+      temaBtn.innerHTML = tema === 'claro'
+        ? '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>'
+        : '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 18a6 6 0 100-12 6 6 0 000 12z"/><path fill-rule="evenodd" d="M12 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm0 17a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zm9-8a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5 12a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1z" clip-rule="evenodd"/></svg>';
+    }
+    let temaAtual = 'escuro';
+    try { temaAtual = localStorage.getItem('sharechat-tema') || 'escuro'; } catch (e) {}
+    aplicarTema(temaAtual);
+    temaBtn.addEventListener('click', () => {
+      temaAtual = temaAtual === 'claro' ? 'escuro' : 'claro';
+      aplicarTema(temaAtual);
+    });
+
+    // ===== FOCO AUTOMÁTICO NO GRID =====
+    // Clique num card de vídeo = foco nele (cresce, brilha, resto diminui).
+    // Clique de novo = volta ao normal. Não conflita com fullscreen (duplo clique).
+    let cardEmFoco = null;
+    videoGrid.addEventListener('click', (e) => {
+      const card = e.target.closest('.card-video');
+      if (!card) return;
+      // ignora cliques em botões/controles dentro do card
+      if (e.target.closest('button, input, .controls')) return;
+      if (card === cardEmFoco) {
+        card.classList.remove('em-alta');
+        videoGrid.classList.remove('em-foco');
+        cardEmFoco = null;
+      } else {
+        cardEmFoco?.classList.remove('em-alta');
+        card.classList.add('em-alta');
+        videoGrid.classList.add('em-foco');
+        cardEmFoco = card;
+      }
+    });
 
     // Status de conexão com o servidor
     function atualizarStatusConexao(estado) {
@@ -329,10 +372,14 @@
       `;
       
       // DocumentFragment: monta tudo fora do DOM e insere 1x só (menos reflow)
+      // Participante NOVO ganha animação de destaque (pop + brilho)
       const frag = document.createDocumentFragment();
+      const nomesAnteriores = new Set(Array.from(participantsList.children).map(el => el.dataset.nome));
       users.forEach(user => {
         const div = document.createElement('div');
-        div.className = 'flex items-center gap-3 text-sm py-2 px-3 rounded-xl hover:bg-indigo-500/10 transition-colors border border-transparent hover:border-indigo-500/20';
+        div.dataset.nome = user.name;
+        if (!nomesAnteriores.has(user.name)) div.className = 'flex items-center gap-3 text-sm py-2 px-3 rounded-xl hover:bg-indigo-500/10 transition-colors border border-transparent hover:border-indigo-500/20 pop-entrada novo-participante';
+        else div.className = 'flex items-center gap-3 text-sm py-2 px-3 rounded-xl hover:bg-indigo-500/10 transition-colors border border-transparent hover:border-indigo-500/20';
         const isMe = user.name === username;
         const grad = corAvatar(user.name);
         div.innerHTML = `
