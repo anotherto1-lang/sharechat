@@ -223,103 +223,6 @@
       iceCandidatePoolSize: 10
     };
 
-    // ===== MODO WARP / REDES QUE BLOQUEIAM UDP =====
-    // WARP e firewalls corporativos bloqueiam UDP direto (P2P puro morre).
-    // TURN sobre TCP/TLS na 443 parece tráfego HTTPS normal e passa.
-    // Se o ICE não conecta em ~4s, liga modo relay global e recria as conexões.
-    const rtcConfigWarp = {
-      iceServers: [
-        {
-          urls: [
-            'turns:openrelay.metered.ca:443?transport=tcp',
-            'turn:openrelay.metered.ca:443?transport=tcp',
-            'turn:openrelay.metered.ca:80?transport=tcp',
-            'turn:openrelay.metered.ca:443',
-            'turn:openrelay.metered.ca:80'
-          ],
-          username: 'openrelayproject',
-          credential: 'openrelayprojectsecret'
-        }
-      ],
-      iceTransportPolicy: 'relay',
-      iceCandidatePoolSize: 4
-    };
-
-    let modoWarpAtivo = false;
-
-    // Liga o modo WARP e recria TODAS as conexões em relay TCP/TLS
-    function ativarModoWarp() {
-      if (modoWarpAtivo) return;
-      modoWarpAtivo = true;
-      console.warn('UDP bloqueado — modo WARP ativado (relay TLS 443)');
-      Object.keys(peers).forEach(id => {
-        const souTransmissor = !!localStream;
-        fecharPeer(id);
-        const novo = new RTCPeerConnection(rtcConfigWarp);
-        peers[id] = novo;
-        montarPeer(novo, id, souTransmissor, true);
-      });
-    }
-
-    // Monta peer completo (tracks, eventos, monitoração). Se transmissor, dispara offer.
-    function montarPeer(pc, id, souTransmissor, ehRecriacaoWarp) {
-      if (souTransmissor) {
-        adicionarTracksComAltaQualidade(pc, localStream);
-      } else {
-        pc.addTransceiver('video', { direction: 'recvonly' });
-        pc.addTransceiver('audio', { direction: 'recvonly' });
-      }
-
-      pc.ontrack = (event) => {
-        event.receivers?.forEach(r => { if (r.jitterBufferTarget !== undefined) r.jitterBufferTarget = 500; });
-        adicionarVideoUI('Tela de Amigo', event.streams[0], false, id);
-        if (!localStream) {
-          monitorarPingReceptor(pc, id);
-          forcarKeyframeReceptor(pc);
-          const cardV = document.getElementById('video-' + id);
-          if (cardV) vigiarCongelamento(cardV.querySelector('video'), pc, id);
-        }
-      };
-      pc.onicecandidate = (event) => { if (event.candidate) socket.emit('ice-candidate', { target: id, candidate: event.candidate }); };
-      pc.onconnectionstatechange = () => {
-        if (pc.connectionState === 'failed') pc.restartIce();
-        if (pc.connectionState === 'disconnected') {
-          pc.restartIce();
-          setTimeout(() => {
-            if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-              const el = document.getElementById('video-' + id);
-              if (el) el.remove();
-              atualizarLayoutGrade();
-            }
-          }, 10000);
-        }
-      };
-      if (souTransmissor) {
-        const videoLocal = document.getElementById('video-local');
-        monitorarQualidade(pc, videoLocal);
-      }
-
-      // Gatilho WARP: sem conexão em 4s = UDP bloqueado -> relay TLS
-      if (!ehRecriacaoWarp && !modoWarpAtivo) {
-        setTimeout(() => {
-          if (pc.connectionState !== 'connected' && pc.connectionState !== 'completed' && !modoWarpAtivo) {
-            ativarModoWarp();
-          }
-        }, 4000);
-      }
-
-      if (souTransmissor) {
-        (async () => {
-          try {
-            preferirCodecsVideo(pc);
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            socket.emit('offer', { target: id, offer: pc.localDescription });
-          } catch (e) { console.error(e); }
-        })();
-      }
-    }
-
     // Entrar na sala apertando Enter
     usernameInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') joinBtn.click();
@@ -879,18 +782,86 @@
     }
 
     socket.on('user-started-share', async (id) => {
-      fecharPeer(id);
-      const pc = new RTCPeerConnection(modoWarpAtivo ? rtcConfigWarp : rtcConfig);
+      fecharPeer(id); // se havia conexão antiga, limpa antes
+      const pc = new RTCPeerConnection(rtcConfig);
       peers[id] = pc;
-      montarPeer(pc, id, !!localStream, false);
+      
+      if (localStream) adicionarTracksComAltaQualidade(pc, localStream);
+      else {
+        pc.addTransceiver('video', { direction: 'recvonly' });
+        pc.addTransceiver('audio', { direction: 'recvonly' });
+      }
+
+      pc.ontrack = (event) => {
+        // Buffer de jitter maior no receptor = absorve variações de rede sem travar
+        event.receivers?.forEach(r => { if (r.jitterBufferTarget !== undefined) r.jitterBufferTarget = 500; });
+        adicionarVideoUI(`Tela de Amigo`, event.streams[0], false, id);
+        if (!localStream) { monitorarPingReceptor(pc, id); forcarKeyframeReceptor(pc); const cardV = document.getElementById('video-' + id); if (cardV) vigiarCongelamento(cardV.querySelector('video'), pc, id); } // quem assiste vê o ping
+      };
+      pc.onicecandidate = (event) => { if (event.candidate) socket.emit('ice-candidate', { target: id, candidate: event.candidate }); };
+      // Reconexão automática se a conexão cair
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === 'failed') pc.restartIce();
+        // Peer sumiu por muito tempo = remove pra não deixar tela congelada
+        if (pc.connectionState === 'disconnected') {
+          // 1ª tentativa: restartIce imediato (renegocia caminho sem derrubar o stream)
+          pc.restartIce();
+          setTimeout(() => {
+            if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+              const el = document.getElementById(`video-${id}`);
+              if (el) el.remove();
+              atualizarLayoutGrade();
+            }
+          }, 10000);
+        }
+      };
+      if (localStream) {
+        const videoLocal = document.getElementById('video-local');
+        monitorarQualidade(pc, videoLocal);
+      }
+
+      preferirCodecsVideo(pc);
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      socket.emit('offer', { target: id, offer: pc.localDescription });
     });
 
     socket.on('offer', async ({ sender, offer }) => {
-      fecharPeer(sender);
-      const pc = new RTCPeerConnection(modoWarpAtivo ? rtcConfigWarp : rtcConfig);
+      fecharPeer(sender); // evita peer duplicado em re-negociação
+      const pc = new RTCPeerConnection(rtcConfig);
       peers[sender] = pc;
-      montarPeer(pc, sender, !!localStream, false);
+      
+      if (localStream) adicionarTracksComAltaQualidade(pc, localStream);
+      else {
+        pc.addTransceiver('video', { direction: 'recvonly' });
+        pc.addTransceiver('audio', { direction: 'recvonly' });
+      }
 
+      pc.ontrack = (event) => {
+        // Buffer de jitter maior no receptor = absorve variações de rede sem travar
+        event.receivers?.forEach(r => { if (r.jitterBufferTarget !== undefined) r.jitterBufferTarget = 500; });
+        adicionarVideoUI(`Tela de Amigo`, event.streams[0], false, sender);
+        if (!localStream) { monitorarPingReceptor(pc, sender); forcarKeyframeReceptor(pc); const cardV = document.getElementById('video-' + sender); if (cardV) vigiarCongelamento(cardV.querySelector('video'), pc, sender); } // quem assiste vê o ping
+      };
+      pc.onicecandidate = (event) => { if (event.candidate) socket.emit('ice-candidate', { target: sender, candidate: event.candidate }); };
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === 'failed') pc.restartIce();
+        if (pc.connectionState === 'disconnected') {
+          pc.restartIce(); // renegocia na hora, sem derrubar o stream
+          setTimeout(() => {
+            if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+              const el = document.getElementById(`video-${sender}`);
+              if (el) el.remove();
+              atualizarLayoutGrade();
+            }
+          }, 10000);
+        }
+      };
+      if (localStream) {
+        const videoLocal = document.getElementById('video-local');
+        monitorarQualidade(pc, videoLocal);
+      }
+      
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
       preferirCodecsVideo(pc);
       const answer = await pc.createAnswer();
