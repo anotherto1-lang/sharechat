@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShareChat - Web Pro</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/socket.io/socket.io.js"></script> 
+  <style>
+    /* Customização elegante da barra de rolagem */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    
+    /* Remove o estilo padrão feio dos selects */
+    select { -webkit-appearance: none; -moz-appearance: none; appearance: none; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-200 h-screen flex flex-col overflow-hidden font-sans selection:bg-indigo-500/30">
+
+  <!-- MODAL DE NOME (Com Efeito Vidro) -->
+  <div id="login-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-opacity duration-300">
+    <div class="bg-slate-900/90 backdrop-blur-xl p-8 rounded-2xl w-full max-w-md shadow-[0_0_40px_rgba(0,0,0,0.5)] border border-slate-800">
+      <div class="flex justify-center mb-4">
+        <div class="w-12 h-12 bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/30">
+          <span class="text-white font-bold text-xl">SC</span>
+        </div>
+      </div>
+      <h2 class="text-2xl font-bold text-white text-center mb-2">Bem-vindo ao ShareChat</h2>
+      <p class="text-slate-400 text-sm text-center mb-6">Digite seu nome para entrar na sala</p>
+      
+      <div class="space-y-4">
+        <input type="text" id="username-input" placeholder="Como devemos te chamar?" class="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl p-4 text-white outline-none transition-all placeholder:text-slate-500">
+        <button id="join-btn" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold p-4 rounded-xl transition-all shadow-lg shadow-indigo-500/25 active:scale-[0.98]">
+          Entrar na Sala
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOPO PREMIUM -->
+  <header class="h-16 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 flex items-center justify-between px-6 shrink-0 z-10">
+    <div class="flex items-center space-x-3">
+      <div class="bg-gradient-to-tr from-indigo-500 to-purple-500 text-white font-bold w-8 h-8 rounded-lg flex items-center justify-center shadow-md">SC</div>
+      <h1 class="font-bold text-white tracking-wide text-lg">ShareChat</h1>
+    </div>
+    
+    <div class="flex items-center gap-4">
+      <!-- Painel de Controles -->
+      <div class="flex items-center bg-slate-950/50 p-1.5 rounded-lg border border-slate-800">
+        <!-- BOTAO DE QUALIDADE -->
+        <select id="quality-select" class="bg-transparent text-slate-300 text-sm outline-none cursor-pointer hover:text-white px-2 font-medium">
+          <option class="bg-slate-800 text-white font-bold" value="auto" selected>✨ Automático</option>
+          <option class="bg-slate-800 text-white" value="360">360p</option>
+          <option class="bg-slate-800 text-white" value="480">480p</option>
+          <option class="bg-slate-800 text-white" value="720">720p HD</option>
+          <option class="bg-slate-800 text-white" value="1080">1080p FHD</option>
+          <option class="bg-slate-800 text-white" value="1440">1440p (2K)</option>
+          <option class="bg-slate-800 text-white" value="2160">2160p (4K)</option>
+        </select>
+        
+        <span class="text-slate-700 mx-2">|</span>
+        
+        <!-- BOTAO DE FPS -->
+        <select id="fps-select" class="bg-transparent text-slate-300 text-sm outline-none cursor-pointer hover:text-white px-2 font-medium">
+          <option class="bg-slate-800 text-white font-bold" value="auto" selected>✨ Auto FPS</option>
+          <option class="bg-slate-800 text-white" value="30">30 FPS</option>
+          <option class="bg-slate-800 text-white" value="60">60 FPS</option>
+        </select>
+      </div>
+
+      <button id="share-btn" class="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white px-5 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all shadow-lg shadow-indigo-500/20 active:scale-95">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+        Compartilhar Tela
+      </button>
+    </div>
+  </header>
+
+  <!-- CORPO PRINCIPAL -->
+  <div class="flex-1 flex flex-col md:flex-row overflow-hidden bg-slate-950">
+    
+    <!-- ÁREA DE VÍDEO -->
+    <div class="flex-1 p-4 flex flex-col items-center justify-center overflow-y-auto relative shadow-inner">
+      <!-- Gradiente de fundo sutil para não ficar tudo preto -->
+      <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-900 to-slate-950 opacity-50 pointer-events-none"></div>
+      
+      <div id="video-grid" class="w-full h-full grid gap-4 items-center justify-center auto-rows-fr z-10"></div>
+      
+      <div id="no-stream" class="absolute flex flex-col items-center text-slate-500 z-10">
+        <div class="w-20 h-20 bg-slate-900 rounded-full flex items-center justify-center mb-4 shadow-xl border border-slate-800">
+          <svg class="w-10 h-10 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+        </div>
+        <p class="font-semibold text-lg text-slate-400">Nenhuma transmissão ativa</p>
+        <span class="text-sm text-slate-600 mt-1">Inicie o compartilhamento no botão superior</span>
+      </div>
+    </div>
+
+    <!-- PAINEL LATERAL (CHAT & PARTICIPANTES) -->
+    <div class="w-full md:w-[340px] bg-slate-900 border-l border-slate-800 flex flex-col h-1/2 md:h-full shrink-0 shadow-2xl z-10">
+      
+      <!-- Lista de Participantes -->
+      <div class="p-5 border-b border-slate-800/80 bg-slate-900/50">
+        <div class="flex justify-between items-center mb-3">
+          <span class="text-xs font-bold text-slate-400 tracking-widest uppercase">Na Sala</span>
+          <span id="online-count" class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs px-2.5 py-1 rounded-full font-bold flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            1 online
+          </span>
+        </div>
+        <div id="participants-list" class="space-y-1.5 max-h-32 overflow-y-auto pr-1"></div>
+      </div>
+      
+      <!-- Chat Area -->
+      <div class="flex-1 flex flex-col p-5 overflow-hidden">
+        <div class="flex items-center gap-2 mb-4">
+          <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+          <h3 class="text-xs font-bold text-slate-400 tracking-widest uppercase">Chat da Sala</h3>
+        </div>
+        
+        <div id="chat-messages" class="flex-1 overflow-y-auto space-y-4 pr-2 text-sm flex flex-col"></div>
+        
+        <div class="mt-4 pt-4 border-t border-slate-800">
+          <form id="chat-form" class="flex gap-2 relative">
+            <input type="text" id="chat-input" placeholder="Escreva algo..." class="flex-1 bg-slate-950 border border-slate-800 text-white pl-4 pr-12 py-3 rounded-xl text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all placeholder:text-slate-600">
+            <button type="submit" class="absolute right-1 top-1 bottom-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white w-10 flex items-center justify-center rounded-lg transition-all shadow-md active:scale-95">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const socket = io();
+    
+    let username = "";
+    let localStream = null;
+    let taxaDeBitsIdeal = 8000000; 
+    let prefersMotion = true; // Prioriza fluidez (fps) ao invés de nitidez
+    const peers = {};
+
+    const loginModal = document.getElementById('login-modal');
+    const usernameInput = document.getElementById('username-input');
+    const joinBtn = document.getElementById('join-btn');
+    const shareBtn = document.getElementById('share-btn');
+    const videoGrid = document.getElementById('video-grid');
+    const noStream = document.getElementById('no-stream');
+    const participantsList = document.getElementById('participants-list');
+    const onlineCount = document.getElementById('online-count');
+    const chatForm = document.getElementById('chat-form');
+    const chatInput = document.getElementById('chat-input');
+    const chatMessages = document.getElementById('chat-messages');
+
+    const qualitySelect = document.getElementById('quality-select');
+    const fpsSelect = document.getElementById('fps-select');
+
+    // STUN (Google + Cloudflare) + TURN nas portas 80/443 (passa por firewall/DNS restritivo)
+    const rtcConfig = { 
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun.cloudflare.com:3478' },
+        { 
+          urls: [
+            'turn:openrelay.metered.ca:80',
+            'turn:openrelay.metered.ca:443',
+            'turn:openrelay.metered.ca:443?transport=tcp',
+            'turns:openrelay.metered.ca:443',
+            'turns:openrelay.metered.ca:443?transport=tcp'
+          ],
+          username: 'openrelayproject',
+          credential: 'openrelayprojectsecret'
+        }
+      ],
+      iceCandidatePoolSize: 10
+    };
+
+    // Entrar na sala apertando Enter
+    usernameInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') joinBtn.click();
+    });
+
+    joinBtn.addEventListener('click', () => {
+      const name = usernameInput.value.trim();
+      if (!name) {
+        usernameInput.classList.add('border-red-500');
+        setTimeout(() => usernameInput.classList.remove('border-red-500'), 1000);
+        return;
+      }
+      username = name;
+      loginModal.style.opacity = '0';
+      setTimeout(() => loginModal.style.display = 'none', 300);
+      socket.emit('join-room', username);
+    });
+
+    chatForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const msg = chatInput.value.trim();
+      if (!msg) return;
+      
+      // Exibe a própria mensagem formatada lindamente
+      adicionarMensagemChat(username, msg, true);
+      socket.emit('chat-message', { name: username, message: msg });
+      chatInput.value = '';
+    });
+
+    socket.on('chat-message', (data) => {
+      adicionarMensagemChat(data.name, data.message, false);
+    });
+
+    function adicionarMensagemChat(autor, texto, souEu) {
+      const div = document.createElement('div');
+      div.className = `flex flex-col ${souEu ? 'items-end' : 'items-start'} animate-fade-in-up`;
+      
+      const balao = souEu 
+        ? 'bg-indigo-600 text-white rounded-2xl rounded-tr-sm' 
+        : 'bg-slate-800 border border-slate-700 text-slate-200 rounded-2xl rounded-tl-sm';
+      
+      div.innerHTML = `
+        <span class="text-xs text-slate-500 mb-1 px-1">${autor}</span>
+        <div class="${balao} px-4 py-2.5 max-w-[90%] shadow-sm leading-relaxed">
+          ${texto}
+        </div>
+      `;
+      chatMessages.appendChild(div);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    socket.on('update-users', (users) => {
+      participantsList.innerHTML = '';
+      onlineCount.innerHTML = `
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+        ${users.length} online
+      `;
+      
+      users.forEach(user => {
+        const div = document.createElement('div');
+        div.className = 'flex items-center gap-3 text-sm py-2 px-3 rounded-lg hover:bg-slate-800/50 transition-colors border border-transparent hover:border-slate-800';
+        const isMe = user.name === username;
+        div.innerHTML = `
+          <div class="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-300">
+            ${user.name.charAt(0).toUpperCase()}
+          </div>
+          <span class="text-slate-300 font-medium">${user.name} <span class="text-slate-600 font-normal">${isMe ? '(Você)' : ''}</span></span>
+        `;
+        participantsList.appendChild(div);
+      });
+    });
+
+    socket.on('new-user', (newUserId) => {
+      if (localStream) socket.emit('notify-already-sharing', newUserId);
+    });
+
+    // Estima o bitrate ideal com base na conexão de internet do usuário
+    async function detectarBitrateAutomatico() {
+      try {
+        const inicio = Date.now();
+        await fetch('https://cdn.tailwindcss.com', { cache: 'no-store' });
+        const pingMs = Date.now() - inicio;
+        
+        // Downlink estimado pelo navegador
+        const downlink = navigator.connection?.downlink || 10; // Mbps
+        
+        // Envia no máximo ~40% da conexão pra não travar
+        let estimado = (downlink * 0.4);
+        
+        // Conexão lenta = reduz mais ainda
+        if (pingMs > 150) estimado *= 0.5;
+        
+        return Math.min(Math.max(estimado * 1000000, 1000000), 6000000);
+      } catch (e) {
+        return 2500000;
+      }
+    }
+
+    shareBtn.addEventListener('click', async () => {
+      if (!localStream) {
+        try {
+          let height, width, fps, dynamicConstraints;
+          
+          if (qualitySelect.value === 'auto' || fpsSelect.value === 'auto') {
+            height = window.screen.height;
+            width = window.screen.width;
+            fps = 30; // 30fps padrão no auto = menos travamento que 60fps
+            
+            taxaDeBitsIdeal = await detectarBitrateAutomatico();
+
+            dynamicConstraints = {
+              video: { width: { ideal: width }, height: { ideal: height }, frameRate: { ideal: fps } },
+              audio: true
+            };
+          } else {
+            fps = parseInt(fpsSelect.value);
+            height = parseInt(qualitySelect.value);
+            width = Math.round((height * 16) / 9); 
+
+            // Bitrates realistas (2 a 3x menores que antes) = transmissão fluida
+            if (height <= 360) taxaDeBitsIdeal = 800000;
+            else if (height <= 480) taxaDeBitsIdeal = 1200000;
+            else if (height <= 720) taxaDeBitsIdeal = 2500000;
+            else if (height <= 1080) taxaDeBitsIdeal = 4000000;
+            else if (height <= 1440) taxaDeBitsIdeal = 6000000;
+            else taxaDeBitsIdeal = 9000000;
+
+            dynamicConstraints = {
+              video: { width: { ideal: width, max: width }, height: { ideal: height, max: height }, frameRate: { ideal: fps, max: fps } },
+              audio: true
+            };
+          }
+
+          localStream = await navigator.mediaDevices.getDisplayMedia(dynamicConstraints);
+          
+          qualitySelect.disabled = true;
+          fpsSelect.disabled = true;
+          
+          adicionarVideoUI('Sua Tela', localStream, true);
+          
+          // Estilo do botão de PARAR
+          shareBtn.innerHTML = `
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            Parar Transmissão
+          `;
+          shareBtn.classList.replace('from-indigo-600', 'from-rose-600');
+          shareBtn.classList.replace('to-purple-600', 'to-red-600');
+          shareBtn.classList.replace('hover:from-indigo-500', 'hover:from-rose-500');
+          shareBtn.classList.replace('hover:to-purple-500', 'hover:to-red-500');
+          shareBtn.classList.replace('shadow-indigo-500/20', 'shadow-rose-500/30');
+          
+          localStream.getVideoTracks()[0].onended = () => pararCompartilhamento();
+          socket.emit('start-share');
+        } catch (err) {
+          console.error("Compartilhamento cancelado ou falhou:", err);
+        }
+      } else {
+        pararCompartilhamento();
+      }
+    });
+
+    function pararCompartilhamento() {
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+        localStream = null;
+      }
+      qualitySelect.disabled = false;
+      fpsSelect.disabled = false;
+      const myVideo = document.getElementById('video-local');
+      if (myVideo) myVideo.remove();
+      
+      // Volta o botão ao normal
+      shareBtn.innerHTML = `
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+        Compartilhar Tela
+      `;
+      shareBtn.classList.replace('from-rose-600', 'from-indigo-600');
+      shareBtn.classList.replace('to-red-600', 'to-purple-600');
+      shareBtn.classList.replace('hover:from-rose-500', 'hover:from-indigo-500');
+      shareBtn.classList.replace('hover:to-red-500', 'hover:to-purple-500');
+      shareBtn.classList.replace('shadow-rose-500/30', 'shadow-indigo-500/20');
+      
+      atualizarLayoutGrade();
+      socket.emit('stop-share');
+    }
+
+    function adicionarTracksComAltaQualidade(pc, stream) {
+      stream.getTracks().forEach(track => {
+        const sender = pc.addTrack(track, stream);
+        if (track.kind === 'video') {
+          const parameters = sender.getParameters();
+          if (!parameters.encodings) parameters.encodings = [{}];
+          
+          // Prioriza manter rodando liso a forçar qualidade máxima
+          parameters.encodings[0].maxBitrate = taxaDeBitsIdeal;
+          parameters.encodings[0].maxFramerate = 30;
+          parameters.encodings[0].priority = 'high';
+          parameters.degradationPreference = prefersMotion ? 'maintain-framerate' : 'balanced';
+          
+          sender.setParameters(parameters).catch(e => console.error(e));
+        }
+      });
+    }
+
+    // Monitora a qualidade da rede e reduz bitrate em tempo real se começar a travar
+    function monitorarQualidade(pc) {
+      let lastStats = { bytes: 0, timestamp: 0 };
+      const intervalo = setInterval(async () => {
+        if (pc.connectionState !== 'connected') {
+          clearInterval(intervalo);
+          return;
+        }
+        try {
+          const stats = await pc.getStats();
+          stats.forEach(report => {
+            if (report.type === 'outbound-rtp' && report.kind === 'video' && report.bytesSent !== undefined) {
+              const agora = Date.now();
+              const tempoDecorrido = (agora - lastStats.timestamp) / 1000;
+              if (tempoDecorrido >= 2) {
+                const kbps = ((report.bytesSent - lastStats.bytes) * 8) / tempoDecorrido / 1000;
+                lastStats = { bytes: report.bytesSent, timestamp: agora };
+                
+                const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+                if (sender && kbps > 0) {
+                  const params = sender.getParameters();
+                  if (!params.encodings) params.encodings = [{}];
+                  // Se está enviando menos que o alvo (rede ruim), reduz o teto pra parar de travar
+                  if (kbps < taxaDeBitsIdeal / 1000 * 0.7 && params.encodings[0].maxBitrate > 500000) {
+                    params.encodings[0].maxBitrate = Math.max(Math.floor(kbps * 1000 * 0.9), 500000);
+                    sender.setParameters(params).catch(() => {});
+                  } else if (kbps > taxaDeBitsIdeal / 1000 * 0.95) {
+                    // Sobrando rede, devolve o teto original gradualmente
+                    params.encodings[0].maxBitrate = taxaDeBitsIdeal;
+                    sender.setParameters(params).catch(() => {});
+                  }
+                }
+              }
+            }
+          });
+        } catch (e) { /* silencioso */ }
+      }, 3000);
+    }
+
+    socket.on('user-started-share', async (id) => {
+      const pc = new RTCPeerConnection(rtcConfig);
+      peers[id] = pc;
+      
+      if (localStream) adicionarTracksComAltaQualidade(pc, localStream);
+      else {
+        pc.addTransceiver('video', { direction: 'recvonly' });
+        pc.addTransceiver('audio', { direction: 'recvonly' });
+      }
+
+      pc.ontrack = (event) => {
+        // Buffer de jitter maior no receptor = absorve variações de rede sem travar
+        event.receivers?.forEach(r => { if (r.jitterBufferTarget !== undefined) r.jitterBufferTarget = 500; });
+        adicionarVideoUI(`Tela de Amigo`, event.streams[0], false, id);
+      };
+      pc.onicecandidate = (event) => { if (event.candidate) socket.emit('ice-candidate', { target: id, candidate: event.candidate }); };
+      // Reconexão automática se a conexão cair
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === 'failed') pc.restartIce();
+      };
+      if (localStream) monitorarQualidade(pc);
+      
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      socket.emit('offer', { target: id, offer: pc.localDescription });
+    });
+
+    socket.on('offer', async ({ sender, offer }) => {
+      const pc = new RTCPeerConnection(rtcConfig);
+      peers[sender] = pc;
+      
+      if (localStream) adicionarTracksComAltaQualidade(pc, localStream);
+      else {
+        pc.addTransceiver('video', { direction: 'recvonly' });
+        pc.addTransceiver('audio', { direction: 'recvonly' });
+      }
+
+      pc.ontrack = (event) => {
+        // Buffer de jitter maior no receptor = absorve variações de rede sem travar
+        event.receivers?.forEach(r => { if (r.jitterBufferTarget !== undefined) r.jitterBufferTarget = 500; });
+        adicionarVideoUI(`Tela de Amigo`, event.streams[0], false, sender);
+      };
+      pc.onicecandidate = (event) => { if (event.candidate) socket.emit('ice-candidate', { target: sender, candidate: event.candidate }); };
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === 'failed') pc.restartIce();
+      };
+      if (localStream) monitorarQualidade(pc);
+      
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      socket.emit('answer', { target: sender, answer: pc.localDescription });
+    });
+
+    socket.on('answer', async ({ sender, answer }) => {
+      if (peers[sender]) await peers[sender].setRemoteDescription(new RTCSessionDescription(answer));
+    });
+
+    socket.on('ice-candidate', async ({ sender, candidate }) => {
+      if (peers[sender]) await peers[sender].addIceCandidate(new RTCIceCandidate(candidate));
+    });
+
+    socket.on('user-stopped-share', (id) => {
+      if (peers[id]) { peers[id].close(); delete peers[id]; }
+      const el = document.getElementById(`video-${id}`);
+      if (el) el.remove();
+      atualizarLayoutGrade();
+    });
+
+    function adicionarVideoUI(title, stream, isLocal, id = 'local') {
+      noStream.style.display = 'none';
+      if (document.getElementById(`video-${id}`)) return;
+      const container = document.createElement('div');
+      container.id = `video-${id}`;
+      // Caixa do vídeo estilizada
+      container.className = 'relative w-full h-full bg-slate-900 rounded-xl overflow-hidden flex items-center justify-center border border-slate-800 shadow-2xl transition-all hover:border-slate-700';
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      video.autoplay = true;
+      video.playsInline = true;
+      if (!isLocal) video.controls = true;
+      if (isLocal) video.muted = true;
+      video.className = 'w-full h-full object-contain';
+      
+      const label = document.createElement('div');
+      // Etiqueta do vídeo translúcida e moderna
+      label.className = 'absolute bottom-4 left-4 bg-slate-900/70 text-slate-200 text-xs px-3 py-1.5 rounded-lg backdrop-blur-md font-semibold border border-slate-700/50 shadow-lg flex items-center gap-2';
+      
+      const badgeColor = isLocal ? 'bg-indigo-500' : 'bg-rose-500';
+      label.innerHTML = `<span class="w-2 h-2 rounded-full ${badgeColor}"></span> ${title}`;
+      
+      container.appendChild(video);
+      container.appendChild(label);
+      videoGrid.appendChild(container);
+      atualizarLayoutGrade();
+    }
+
+    function atualizarLayoutGrade() {
+      const telas = videoGrid.children.length;
+      if (telas === 0) {
+        noStream.style.display = 'flex';
+        videoGrid.className = 'w-full h-full grid gap-4 items-center justify-center auto-rows-fr';
+      } else if (telas === 1) {
+        videoGrid.className = 'w-full h-full grid grid-cols-1 gap-6 p-4 items-center justify-center auto-rows-fr';
+      } else if (telas === 2) {
+        videoGrid.className = 'w-full h-full grid grid-cols-1 md:grid-cols-2 gap-6 p-4 items-center justify-center auto-rows-fr';
+      } else {
+        videoGrid.className = 'w-full h-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-4 items-center justify-center auto-rows-fr';
+      }
+    }
+  </script>
+</body>
+</html>
