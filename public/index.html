@@ -541,6 +541,9 @@
           parameters.encodings[2].scaleResolutionDownBy = 4;
           parameters.encodings[2].maxFramerate = Math.floor(fpsEscolhido / 2);
           parameters.encodings[0].priority = 'high';
+          // networkPriority: alto em todas as camadas (fila de envio do browser)
+          // em conjunto com RTX/FEC que o navegador negocia automaticamente
+          parameters.encodings.forEach(enc => { enc.networkPriority = 'high'; });
           // JOGO: mantém FPS custe o que custar (derruba resolução se precisar)
           // TELA: equilíbrio entre nitidez e fluidez
           parameters.degradationPreference = isModoJogo() ? 'maintain-framerate' : 'balanced';
@@ -701,6 +704,68 @@
       }
     }
 
+    // Avisa espectadores quando a TELA COMPARTILHADA minimiza:
+    // o stream congela sem aviso (janela minimizada = nenhum frame novo).
+    function vigiarMinimizacao(track, container) {
+      if (!container) return;
+      setInterval(() => {
+        const aviso = container.querySelector('.aviso-minimizado');
+        // track.muted = true quando a fonte para de produzir frames (janela minimizada)
+        const minimizado = track.muted === true && localStream !== null;
+        if (minimizado && !aviso) {
+          const el = document.createElement('div');
+          el.className = 'aviso-minimizado absolute inset-0 flex flex-col items-center justify-center bg-slate-950/85 backdrop-blur-md z-20';
+          el.innerHTML = `
+            <svg class="w-12 h-12 text-indigo-400 mb-3 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+            <p class="font-display font-bold text-slate-200">Transmissão pausada</p>
+            <p class="text-xs text-slate-500 mt-1">A janela compartilhada foi minimizada</p>
+          `;
+          container.appendChild(el);
+        } else if (!minimizado && aviso) {
+          aviso.remove();
+        }
+      }, 1500);
+    }
+
+    // Painel de estatísticas do streamer: bitrate/fps/latência por espectador.
+    // Clique no SEU card de vídeo abre/fecha. Dados de todos os peers de envio.
+    function alternarPainelStats() {
+      let painel = document.getElementById('painel-streamer');
+      if (painel) { painel.remove(); return; }
+
+      painel = document.createElement('div');
+      painel.id = 'painel-streamer';
+      painel.className = 'fixed bottom-4 left-4 z-40 glass rounded-2xl p-4 w-80 border-indigo-500/25 shadow-2xl animar-entrada';
+      painel.innerHTML = '<h4 class="font-display font-bold text-sm text-white mb-3">📡 Estatísticas da transmissão</h4><div class="corpo-stats space-y-2 text-xs font-mono text-slate-300"></div>';
+      document.body.appendChild(painel);
+      const corpo = painel.querySelector('.corpo-stats');
+
+      const intervalo = setInterval(async () => {
+        if (!document.getElementById('painel-streamer')) { clearInterval(intervalo); return; }
+        if (!localStream) { document.getElementById('painel-streamer')?.remove(); clearInterval(intervalo); return; }
+        const linhas = [];
+        for (const [id, pc] of Object.entries(peers)) {
+          try {
+            const stats = await pc.getStats();
+            let out = null, cand = null;
+            stats.forEach(r => {
+              if (r.type === 'outbound-rtp' && r.kind === 'video') out = r;
+              if (r.type === 'candidate-pair' && r.state === 'succeeded' && r.currentRoundTripTime !== undefined) cand = r;
+            });
+            if (out) {
+              const kbps = Math.round((out.bitrate ?? 0) / 1000);
+              const fps = out.framesPerSecond ?? 0;
+              const res = out.frameWidth && out.frameHeight ? `${out.frameWidth}x${out.frameHeight}` : '?';
+              const rtt = cand ? Math.round(cand.currentRoundTripTime * 1000) : '?';
+              const perda = out.packetsSent ? ((out.packetsLost ?? 0) / out.packetsSent * 100).toFixed(1) : '0';
+              linhas.push(`<div class="glass-soft rounded-xl px-3 py-2 flex justify-between items-center"><span>👁 Espectador <span class="text-slate-500">${id.slice(0, 6)}</span></span><span class="text-indigo-300">${kbps}kbps · ${fps}fps · ${res} · ${rtt}ms · ${perda}%</span></div>`);
+            }
+          } catch (e) {}
+        }
+        corpo.innerHTML = linhas.length ? linhas.join('') : '<p class="text-slate-500">Nenhum espectador conectado ainda...</p>';
+      }, 1500);
+    }
+
     // Monitora RTT do receptor e mostra ping ao vivo no card (badge colorido)
     function monitorarPingReceptor(pc, id) {
       let ultimoRTT = null;
@@ -794,9 +859,9 @@
 
       pc.ontrack = (event) => {
         // Buffer de jitter maior no receptor = absorve variações de rede sem travar
-        event.receivers?.forEach(r => { if (r.jitterBufferTarget !== undefined) r.jitterBufferTarget = 500; });
+        event.receivers?.forEach(r => { if (r.jitterBufferTarget !== undefined) r.jitterBufferTarget = 500; if (r.playoutDelayHint !== undefined) r.playoutDelayHint = 0; });;
         adicionarVideoUI(`Tela de Amigo`, event.streams[0], false, id);
-        if (!localStream) { monitorarPingReceptor(pc, id); forcarKeyframeReceptor(pc); const cardV = document.getElementById('video-' + id); if (cardV) vigiarCongelamento(cardV.querySelector('video'), pc, id); } // quem assiste vê o ping
+        if (!localStream) { monitorarPingReceptor(pc, id); forcarKeyframeReceptor(pc); const cardV = document.getElementById('video-' + id); if (cardV) vigiarCongelamento(cardV.querySelector('video'), pc, id); vigiarMinimizacao(event.streams[0].getVideoTracks()[0], cardV); } // quem assiste vê o ping
       };
       pc.onicecandidate = (event) => { if (event.candidate) socket.emit('ice-candidate', { target: id, candidate: event.candidate }); };
       // Reconexão automática se a conexão cair
@@ -839,9 +904,9 @@
 
       pc.ontrack = (event) => {
         // Buffer de jitter maior no receptor = absorve variações de rede sem travar
-        event.receivers?.forEach(r => { if (r.jitterBufferTarget !== undefined) r.jitterBufferTarget = 500; });
+        event.receivers?.forEach(r => { if (r.jitterBufferTarget !== undefined) r.jitterBufferTarget = 500; if (r.playoutDelayHint !== undefined) r.playoutDelayHint = 0; });;
         adicionarVideoUI(`Tela de Amigo`, event.streams[0], false, sender);
-        if (!localStream) { monitorarPingReceptor(pc, sender); forcarKeyframeReceptor(pc); const cardV = document.getElementById('video-' + sender); if (cardV) vigiarCongelamento(cardV.querySelector('video'), pc, sender); } // quem assiste vê o ping
+        if (!localStream) { monitorarPingReceptor(pc, sender); forcarKeyframeReceptor(pc); const cardV = document.getElementById('video-' + sender); if (cardV) vigiarCongelamento(cardV.querySelector('video'), pc, sender); vigiarMinimizacao(event.streams[0].getVideoTracks()[0], cardV); } // quem assiste vê o ping
       };
       pc.onicecandidate = (event) => { if (event.candidate) socket.emit('ice-candidate', { target: sender, candidate: event.candidate }); };
       pc.onconnectionstatechange = () => {
@@ -906,7 +971,7 @@
           if (bufferAlvo >= 1500) return;
           bufferAlvo += 250;
           Object.values(peers).forEach(pc => {
-            pc.getReceivers?.().forEach(r => { if (r.jitterBufferTarget !== undefined) r.jitterBufferTarget = bufferAlvo; });
+            pc.getReceivers?.().forEach(r => { if (r.jitterBufferTarget !== undefined) r.jitterBufferTarget = bufferAlvo; if (r.playoutDelayHint !== undefined) r.playoutDelayHint = bufferAlvo / 1000; });
           });
         };
         setInterval(() => {
@@ -997,7 +1062,7 @@
           else container.requestFullscreen().catch(() => {});
         });
       } else {
-        // Tela local: só botão de tela cheia
+        // Tela local: botão de tela cheia + clique abre painel de estatísticas
         const btnFull = document.createElement('button');
         btnFull.title = 'Tela cheia';
         btnFull.className = 'absolute top-3 right-3 text-slate-300 hover:text-white hover:bg-indigo-500/20 glass border-indigo-500/20 p-1.5 rounded-lg transition-colors opacity-0 md:group-hover:opacity-100';
@@ -1006,6 +1071,10 @@
           e.stopPropagation();
           if (document.fullscreenElement) document.exitFullscreen();
           else container.requestFullscreen().catch(() => {});
+        });
+        // Clique simples no card local = painel de estatísticas do streamer
+        container.addEventListener('click', () => {
+          if (localStream) alternarPainelStats();
         });
         container.appendChild(btnFull);
       }
