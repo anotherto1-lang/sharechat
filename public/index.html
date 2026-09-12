@@ -40,17 +40,20 @@
   </div>
 
   <!-- TOPO PREMIUM -->
-  <header class="h-16 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 flex items-center justify-between px-6 shrink-0 z-10">
+  <header class="min-h-16 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 flex flex-wrap items-center justify-between gap-2 px-4 md:px-6 py-2 shrink-0 z-10">
     <div class="flex items-center space-x-3">
       <div class="bg-gradient-to-tr from-indigo-500 to-purple-500 text-white font-bold w-8 h-8 rounded-lg flex items-center justify-center shadow-md">SC</div>
       <h1 class="font-bold text-white tracking-wide text-lg">ShareChat</h1>
+      <span id="conn-badge" class="bg-emerald-500/20 border-emerald-500/40 text-emerald-400 text-xs px-2.5 py-1 rounded-full font-bold flex items-center gap-1.5 border">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Online
+      </span>
     </div>
     
-    <div class="flex items-center gap-4">
+    <div class="flex items-center gap-2 md:gap-4 flex-wrap">
       <!-- Painel de Controles -->
       <div class="flex items-center bg-slate-950/50 p-1.5 rounded-lg border border-slate-800">
         <!-- BOTAO DE QUALIDADE -->
-        <select id="quality-select" class="bg-transparent text-slate-300 text-sm outline-none cursor-pointer hover:text-white px-2 font-medium">
+        <select id="quality-select" class="bg-transparent text-slate-300 text-xs md:text-sm outline-none cursor-pointer hover:text-white px-2 font-medium">
           <option class="bg-slate-800 text-white font-bold" value="auto" selected>✨ Automático</option>
           <option class="bg-slate-800 text-white" value="360">360p</option>
           <option class="bg-slate-800 text-white" value="480">480p</option>
@@ -60,19 +63,19 @@
           <option class="bg-slate-800 text-white" value="2160">2160p (4K)</option>
         </select>
         
-        <span class="text-slate-700 mx-2">|</span>
+        <span class="text-slate-700 mx-1 md:mx-2">|</span>
         
         <!-- BOTAO DE FPS -->
-        <select id="fps-select" class="bg-transparent text-slate-300 text-sm outline-none cursor-pointer hover:text-white px-2 font-medium">
+        <select id="fps-select" class="bg-transparent text-slate-300 text-xs md:text-sm outline-none cursor-pointer hover:text-white px-2 font-medium">
           <option class="bg-slate-800 text-white font-bold" value="auto" selected>✨ Auto FPS</option>
           <option class="bg-slate-800 text-white" value="30">30 FPS</option>
           <option class="bg-slate-800 text-white" value="60">60 FPS</option>
         </select>
       </div>
 
-      <button id="share-btn" class="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white px-5 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all shadow-lg shadow-indigo-500/20 active:scale-95">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
-        Compartilhar Tela
+      <button id="share-btn" class="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white px-3 md:px-5 py-2 md:py-2.5 rounded-lg text-xs md:text-sm font-semibold flex items-center gap-2 transition-all shadow-lg shadow-indigo-500/20 active:scale-95">
+        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+        <span class="hidden sm:inline">Compartilhar Tela</span><span class="sm:hidden">Compartilhar</span>
       </button>
     </div>
   </header>
@@ -155,6 +158,23 @@
 
     const qualitySelect = document.getElementById('quality-select');
     const fpsSelect = document.getElementById('fps-select');
+    const connBadge = document.getElementById('conn-badge');
+
+    // Status de conexão com o servidor
+    function atualizarStatusConexao(estado) {
+      const configs = {
+        conectando: { cor: 'bg-amber-500/20 border-amber-500/40 text-amber-400', ponto: 'bg-amber-400', texto: 'Conectando...' },
+        conectado: { cor: 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400', ponto: 'bg-emerald-400', texto: 'Online' },
+        caiu: { cor: 'bg-rose-500/20 border-rose-500/40 text-rose-400', ponto: 'bg-rose-400', texto: 'Reconectando...' }
+      };
+      const c = configs[estado];
+      connBadge.className = `${c.cor} text-xs px-2.5 py-1 rounded-full font-bold flex items-center gap-1.5 border`;
+      connBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full ${c.ponto} animate-pulse"></span> ${c.texto}`;
+    }
+
+    socket.on('connect', () => atualizarStatusConexao('conectado'));
+    socket.on('disconnect', () => atualizarStatusConexao('caiu'));
+    atualizarStatusConexao('conectando');
 
     // STUN (Google + Cloudflare) + TURN nas portas 80/443 (passa por firewall/DNS restritivo)
     const rtcConfig = { 
@@ -206,11 +226,37 @@
       chatInput.value = '';
     });
 
+    // Som de notificação gerado por código (sem arquivo externo)
+    function tocarSomNotificacao() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.08);
+        gain.gain.setValueAtTime(0.08, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.25);
+      } catch (e) { /* som não é crítico */ }
+    }
+
     socket.on('chat-message', (data) => {
       adicionarMensagemChat(data.name, data.message, false);
     });
 
+    // Proteção contra XSS: escapa qualquer HTML que o usuário digitar
+    function escaparHTML(texto) {
+      const div = document.createElement('div');
+      div.textContent = texto;
+      return div.innerHTML;
+    }
+
     function adicionarMensagemChat(autor, texto, souEu) {
+      const agora = new Date();
+      const hora = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
       const div = document.createElement('div');
       div.className = `flex flex-col ${souEu ? 'items-end' : 'items-start'} animate-fade-in-up`;
       
@@ -219,13 +265,15 @@
         : 'bg-slate-800 border border-slate-700 text-slate-200 rounded-2xl rounded-tl-sm';
       
       div.innerHTML = `
-        <span class="text-xs text-slate-500 mb-1 px-1">${autor}</span>
-        <div class="${balao} px-4 py-2.5 max-w-[90%] shadow-sm leading-relaxed">
-          ${texto}
+        <span class="text-xs text-slate-500 mb-1 px-1">${escaparHTML(autor)} <span class="text-slate-600">· ${hora}</span></span>
+        <div class="${balao} px-4 py-2.5 max-w-[90%] shadow-sm leading-relaxed whitespace-pre-wrap break-words">
+          ${escaparHTML(texto)}
         </div>
       `;
       chatMessages.appendChild(div);
       chatMessages.scrollTop = chatMessages.scrollHeight;
+      
+      if (!souEu) tocarSomNotificacao();
     }
 
     socket.on('update-users', (users) => {
@@ -241,9 +289,9 @@
         const isMe = user.name === username;
         div.innerHTML = `
           <div class="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-300">
-            ${user.name.charAt(0).toUpperCase()}
+            ${escaparHTML(user.name.charAt(0).toUpperCase())}
           </div>
-          <span class="text-slate-300 font-medium">${user.name} <span class="text-slate-600 font-normal">${isMe ? '(Você)' : ''}</span></span>
+          <span class="text-slate-300 font-medium">${escaparHTML(user.name)} <span class="text-slate-600 font-normal">${isMe ? '(Você)' : ''}</span></span>
         `;
         participantsList.appendChild(div);
       });
@@ -495,24 +543,103 @@
       const container = document.createElement('div');
       container.id = `video-${id}`;
       // Caixa do vídeo estilizada
-      container.className = 'relative w-full h-full bg-slate-900 rounded-xl overflow-hidden flex items-center justify-center border border-slate-800 shadow-2xl transition-all hover:border-slate-700';
+      container.className = 'relative w-full h-full bg-slate-900 rounded-xl overflow-hidden flex items-center justify-center border border-slate-800 shadow-2xl transition-all hover:border-slate-700 group';
       const video = document.createElement('video');
       video.srcObject = stream;
       video.autoplay = true;
       video.playsInline = true;
-      if (!isLocal) video.controls = true;
       if (isLocal) video.muted = true;
       video.className = 'w-full h-full object-contain';
-      
+
+      const badgeColor = isLocal ? 'bg-indigo-500' : 'bg-rose-500';
       const label = document.createElement('div');
       // Etiqueta do vídeo translúcida e moderna
-      label.className = 'absolute bottom-4 left-4 bg-slate-900/70 text-slate-200 text-xs px-3 py-1.5 rounded-lg backdrop-blur-md font-semibold border border-slate-700/50 shadow-lg flex items-center gap-2';
-      
-      const badgeColor = isLocal ? 'bg-indigo-500' : 'bg-rose-500';
-      label.innerHTML = `<span class="w-2 h-2 rounded-full ${badgeColor}"></span> ${title}`;
-      
+      label.className = 'absolute bottom-4 left-4 bg-slate-900/70 text-slate-200 text-xs px-3 py-1.5 rounded-lg backdrop-blur-md font-semibold border border-slate-700/50 shadow-lg flex items-center gap-2 pointer-events-none';
+      label.innerHTML = `<span class="w-2 h-2 rounded-full ${badgeColor}"></span> ${escaparHTML(title)}`;
+
       container.appendChild(video);
       container.appendChild(label);
+
+      if (!isLocal) {
+        // Painel de controles do espectador (aparece no hover / sempre visível no celular)
+        const controls = document.createElement('div');
+        controls.className = 'absolute top-3 right-3 flex items-center gap-1.5 bg-slate-900/80 backdrop-blur-md border border-slate-700/50 rounded-lg p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity';
+
+        // Botão mudo/áudio
+        const btnMudo = document.createElement('button');
+        btnMudo.title = 'Mutar / Ativar som';
+        btnMudo.className = 'text-slate-300 hover:text-white hover:bg-slate-800 p-1.5 rounded-md transition-colors';
+        const iconesMudo = {
+          true: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"></path></svg>',
+          false: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072M17.95 5.05a8.5 8.5 0 010 13.9M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path></svg>'
+        };
+        let mudo = false;
+        btnMudo.innerHTML = iconesMudo[false];
+        btnMudo.addEventListener('click', (e) => {
+          e.stopPropagation();
+          mudo = !mudo;
+          video.muted = mudo;
+          btnMudo.innerHTML = iconesMudo[mudo];
+        });
+
+        // Controle de volume
+        const volume = document.createElement('input');
+        volume.type = 'range';
+        volume.min = 0; volume.max = 100; volume.value = 100;
+        volume.title = 'Volume';
+        volume.className = 'w-16 accent-indigo-500 cursor-pointer';
+        volume.addEventListener('input', () => { video.volume = volume.value / 100; });
+        volume.addEventListener('click', (e) => e.stopPropagation());
+
+        // Botão Picture-in-Picture
+        const btnPip = document.createElement('button');
+        btnPip.title = 'Picture-in-Picture (janelinha flutuante)';
+        btnPip.className = 'text-slate-300 hover:text-white hover:bg-slate-800 p-1.5 rounded-md transition-colors';
+        btnPip.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>';
+        btnPip.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          try {
+            if (document.pictureInPictureElement) await document.exitPictureInPicture();
+            else await video.requestPictureInPicture();
+          } catch (err) { console.warn('PiP não suportado:', err); }
+        });
+
+        // Botão tela cheia
+        const btnFull = document.createElement('button');
+        btnFull.title = 'Tela cheia';
+        btnFull.className = 'text-slate-300 hover:text-white hover:bg-slate-800 p-1.5 rounded-md transition-colors';
+        btnFull.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>';
+        btnFull.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (document.fullscreenElement) document.exitFullscreen();
+          else container.requestFullscreen().catch(() => {});
+        });
+
+        controls.appendChild(btnMudo);
+        controls.appendChild(volume);
+        controls.appendChild(btnPip);
+        controls.appendChild(btnFull);
+        container.appendChild(controls);
+
+        // Duplo clique = tela cheia (atalho rápido)
+        container.addEventListener('dblclick', () => {
+          if (document.fullscreenElement) document.exitFullscreen();
+          else container.requestFullscreen().catch(() => {});
+        });
+      } else {
+        // Tela local: só botão de tela cheia
+        const btnFull = document.createElement('button');
+        btnFull.title = 'Tela cheia';
+        btnFull.className = 'absolute top-3 right-3 text-slate-300 hover:text-white hover:bg-slate-800/80 bg-slate-900/80 backdrop-blur-md border border-slate-700/50 p-1.5 rounded-md transition-colors opacity-0 md:group-hover:opacity-100';
+        btnFull.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>';
+        btnFull.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (document.fullscreenElement) document.exitFullscreen();
+          else container.requestFullscreen().catch(() => {});
+        });
+        container.appendChild(btnFull);
+      }
+
       videoGrid.appendChild(container);
       atualizarLayoutGrade();
     }
