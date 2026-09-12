@@ -1,0 +1,112 @@
+/* ===== FUNDAÇÃO DO DESIGN ===== */
+:root {
+  --glass: rgba(15, 20, 40, 0.55);
+  --glass-border: rgba(148, 163, 255, 0.12);
+  --glow-1: rgba(99, 102, 241, 0.35);
+  --glow-2: rgba(217, 70, 239, 0.28);
+  --glow-3: rgba(56, 189, 248, 0.22);
+}
+html { color-scheme: dark; }
+body { font-family: 'Inter', sans-serif; }
+.font-display { font-family: 'Sora', sans-serif; }
+
+/* ===== AURORA ANIMADA (fundo vivo) ===== */
+.aurora { position: fixed; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; }
+.aurora::before, .aurora::after {
+  content: ''; position: absolute; width: 60vmax; height: 60vmax; border-radius: 50%;
+  filter: blur(120px); opacity: 0.55; will-change: transform;
+}
+.aurora::before {
+  background: radial-gradient(circle, var(--glow-1), transparent 65%);
+  top: -25vmax; left: -15vmax; animation: deriva1 26s ease-in-out infinite alternate;
+}
+.aurora::after {
+  background: radial-gradient(circle, var(--glow-2), transparent 65%);
+  bottom: -30vmax; right: -20vmax; animation: deriva2 32s ease-in-out infinite alternate;
+}
+.aurora .blob3 {
+  position: absolute; width: 45vmax; height: 45vmax; border-radius: 50%;
+  background: radial-gradient(circle, var(--glow-3), transparent 65%);
+  filter: blur(110px); top: 30%; left: 45%; opacity: 0.4;
+  animation: deriva3 38s ease-in-out infinite alternate;
+}
+@keyframes deriva1 { from { transform: translate(0, 0) scale(1); } to { transform: translate(18vmax, 12vmax) scale(1.15); } }
+@keyframes deriva2 { from { transform: translate(0, 0) scale(1.1); } to { transform: translate(-14vmax, -10vmax) scale(0.95); } }
+@keyframes deriva3 { from { transform: translate(-10vmax, 0) scale(1); } to { transform: translate(12vmax, -14vmax) scale(1.2); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora::before, .aurora::after, .aurora .blob3 { animation: none; }
+  .flutuar, .animar-entrada { animation-duration: 0.01s; }
+}
+
+/* ===== VIDRO (glassmorphism) ===== */
+.glass {
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(22px) saturate(1.4);
+  -webkit-backdrop-filter: blur(22px) saturate(1.4);
+}
+.glass-soft {
+  background: rgba(15, 20, 40, 0.35);
+  border: 1px solid rgba(148, 163, 255, 0.08);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+/* ===== TEXTO COM GRADIENTE ===== */
+.text-aurora {
+  background: linear-gradient(110deg, #818cf8 5%, #e879f9 45%, #38bdf8 95%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+
+/* ===== BOTÃO MÁGICO (brilho deslizante) ===== */
+.btn-magico { position: relative; overflow: hidden; isolation: isolate; }
+.btn-magico::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.28) 50%, transparent 65%);
+  transform: translateX(-120%); transition: transform 0.7s ease;
+}
+.btn-magico:hover::after { transform: translateX(120%); }
+
+/* ===== ANIMAÇÕES ===== */
+@keyframes flutuar { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+.flutuar { animation: flutuar 5s ease-in-out infinite; }
+@keyframes aparecer { from { opacity: 0; transform: translateY(10px) scale(0.97); } to { opacity: 1; transform: none; } }
+.animar-entrada { animation: aparecer 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes brilhoBorda { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+.borda-animada { background: linear-gradient(120deg, rgba(99,102,241,0.5), rgba(217,70,239,0.4), rgba(56,189,248,0.4), rgba(99,102,241,0.5)) border-box; background-size: 300% 300%; animation: brilhoBorda 8s ease infinite; }
+.borda-animada-conteudo { background: #0c1226; border-radius: inherit; margin: 1px; }
+
+/* ===== SCROLLBAR ===== */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: linear-gradient(180deg, rgba(129,140,248,0.35), rgba(232,121,249,0.35)); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, rgba(129,140,248,0.6), rgba(232,121,249,0.6)); }
+
+/* ===== SELECTS ===== */
+select { -webkit-appearance: none; appearance: none; }
+select option { background: #0c1226; color: #e2e8f0; }
+
+/* ===== CARDS DE VÍDEO ===== */
+.card-video {
+  background: #0a0f1f;
+  border: 1px solid rgba(148, 163, 255, 0.1);
+  box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255,255,255,0.04);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.25s ease;
+}
+.card-video:hover {
+  border-color: rgba(129, 140, 248, 0.45);
+  box-shadow: 0 24px 70px -18px rgba(0,0,0,0.8), 0 0 40px -10px var(--glow-1), inset 0 1px 0 rgba(255,255,255,0.05);
+}
+
+/* Balão do chat: minhas mensagens com gradiente suave */
+.bolha-minha {
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  box-shadow: 0 8px 24px -8px rgba(79, 70, 229, 0.45);
+}
+
+/* Grade de pontos de fundo (textura sutil) */
+.grade-pontos {
+  background-image: radial-gradient(rgba(148, 163, 255, 0.07) 1px, transparent 1px);
+  background-size: 22px 22px;
+}

@@ -1,137 +1,15 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ShareChat — Compartilhe sua tela ao vivo</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <title>ShareChat â€” Compartilhe sua tela ao vivo</title>
+  <link rel="stylesheet" href="/tailwind.css">
   <script src="/socket.io/socket.io.js"></script> 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: { display: ['Sora', 'sans-serif'], body: ['Inter', 'sans-serif'] }
-        }
-      }
-    }
-  </script>
-  <style>
-    /* ===== FUNDAÇÃO DO DESIGN ===== */
-    :root {
-      --glass: rgba(15, 20, 40, 0.55);
-      --glass-border: rgba(148, 163, 255, 0.12);
-      --glow-1: rgba(99, 102, 241, 0.35);
-      --glow-2: rgba(217, 70, 239, 0.28);
-      --glow-3: rgba(56, 189, 248, 0.22);
-    }
-    html { color-scheme: dark; }
-    body { font-family: 'Inter', sans-serif; }
-    .font-display { font-family: 'Sora', sans-serif; }
-
-    /* ===== AURORA ANIMADA (fundo vivo) ===== */
-    .aurora { position: fixed; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; }
-    .aurora::before, .aurora::after {
-      content: ''; position: absolute; width: 60vmax; height: 60vmax; border-radius: 50%;
-      filter: blur(120px); opacity: 0.55; will-change: transform;
-    }
-    .aurora::before {
-      background: radial-gradient(circle, var(--glow-1), transparent 65%);
-      top: -25vmax; left: -15vmax; animation: deriva1 26s ease-in-out infinite alternate;
-    }
-    .aurora::after {
-      background: radial-gradient(circle, var(--glow-2), transparent 65%);
-      bottom: -30vmax; right: -20vmax; animation: deriva2 32s ease-in-out infinite alternate;
-    }
-    .aurora .blob3 {
-      position: absolute; width: 45vmax; height: 45vmax; border-radius: 50%;
-      background: radial-gradient(circle, var(--glow-3), transparent 65%);
-      filter: blur(110px); top: 30%; left: 45%; opacity: 0.4;
-      animation: deriva3 38s ease-in-out infinite alternate;
-    }
-    @keyframes deriva1 { from { transform: translate(0, 0) scale(1); } to { transform: translate(18vmax, 12vmax) scale(1.15); } }
-    @keyframes deriva2 { from { transform: translate(0, 0) scale(1.1); } to { transform: translate(-14vmax, -10vmax) scale(0.95); } }
-    @keyframes deriva3 { from { transform: translate(-10vmax, 0) scale(1); } to { transform: translate(12vmax, -14vmax) scale(1.2); } }
-
-    /* Reduz animação pra quem prefere menos movimento */
-    @media (prefers-reduced-motion: reduce) {
-      .aurora::before, .aurora::after, .aurora .blob3 { animation: none; }
-    }
-
-    /* ===== VIDRO (glassmorphism) ===== */
-    .glass {
-      background: var(--glass);
-      border: 1px solid var(--glass-border);
-      backdrop-filter: blur(22px) saturate(1.4);
-      -webkit-backdrop-filter: blur(22px) saturate(1.4);
-    }
-    .glass-soft {
-      background: rgba(15, 20, 40, 0.35);
-      border: 1px solid rgba(148, 163, 255, 0.08);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-    }
-
-    /* ===== TEXTO COM GRADIENTE ===== */
-    .text-aurora {
-      background: linear-gradient(110deg, #818cf8 5%, #e879f9 45%, #38bdf8 95%);
-      -webkit-background-clip: text; background-clip: text; color: transparent;
-    }
-
-    /* ===== BOTÃO MÁGICO (brilho deslizante) ===== */
-    .btn-magico { position: relative; overflow: hidden; isolation: isolate; }
-    .btn-magico::after {
-      content: ''; position: absolute; inset: 0;
-      background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.28) 50%, transparent 65%);
-      transform: translateX(-120%); transition: transform 0.7s ease;
-    }
-    .btn-magico:hover::after { transform: translateX(120%); }
-
-    /* ===== ANIMAÇÕES ===== */
-    @keyframes flutuar { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
-    .flutuar { animation: flutuar 5s ease-in-out infinite; }
-    @keyframes aparecer { from { opacity: 0; transform: translateY(10px) scale(0.97); } to { opacity: 1; transform: none; } }
-    .animar-entrada { animation: aparecer 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
-    @keyframes brilhoBorda { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
-    .borda-animada { background: linear-gradient(120deg, rgba(99,102,241,0.5), rgba(217,70,239,0.4), rgba(56,189,248,0.4), rgba(99,102,241,0.5)) border-box; background-size: 300% 300%; animation: brilhoBorda 8s ease infinite; }
-    .borda-animada-conteudo { background: #0c1226; border-radius: inherit; margin: 1px; }
-
-    /* ===== SCROLLBAR ===== */
-    ::-webkit-scrollbar { width: 5px; height: 5px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, rgba(129,140,248,0.35), rgba(232,121,249,0.35)); border-radius: 10px; }
-    ::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, rgba(129,140,248,0.6), rgba(232,121,249,0.6)); }
-
-    /* ===== SELECTS ===== */
-    select { -webkit-appearance: none; appearance: none; }
-    select option { background: #0c1226; color: #e2e8f0; }
-
-    /* ===== CARDS DE VÍDEO ===== */
-    .card-video {
-      background: #0a0f1f;
-      border: 1px solid rgba(148, 163, 255, 0.1);
-      box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255,255,255,0.04);
-      transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.25s ease;
-    }
-    .card-video:hover {
-      border-color: rgba(129, 140, 248, 0.45);
-      box-shadow: 0 24px 70px -18px rgba(0,0,0,0.8), 0 0 40px -10px var(--glow-1), inset 0 1px 0 rgba(255,255,255,0.05);
-    }
-
-    /* Balão do chat: minhas mensagens com gradiente suave */
-    .bolha-minha {
-      background: linear-gradient(135deg, #4f46e5, #7c3aed);
-      box-shadow: 0 8px 24px -8px rgba(79, 70, 229, 0.45);
-    }
-
-    /* Grade de pontos de fundo (textura sutil) */
-    .grade-pontos {
-      background-image: radial-gradient(rgba(148, 163, 255, 0.07) 1px, transparent 1px);
-      background-size: 22px 22px;
-    }
-  </style>
+  
 </head>
 <body class="bg-[#070b18] text-slate-200 h-screen flex flex-col overflow-hidden font-body selection:bg-indigo-500/30">
 
@@ -156,7 +34,7 @@
           </div>
         </div>
         <h2 class="font-display text-3xl font-extrabold text-white text-center tracking-tight">Bem-vindo ao <span class="text-aurora">ShareChat</span></h2>
-        <p class="text-slate-400 text-sm text-center mt-2 mb-8">Compartilhe sua tela com os amigos em tempo real — sem travar, em qualquer rede.</p>
+        <p class="text-slate-400 text-sm text-center mt-2 mb-8">Compartilhe sua tela com os amigos em tempo real â€” sem travar, em qualquer rede.</p>
         
         <div class="space-y-4 relative">
           <div class="relative">
@@ -166,7 +44,7 @@
           <button id="join-btn" class="btn-magico w-full bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 hover:from-indigo-500 hover:via-violet-500 hover:to-fuchsia-500 text-white font-display font-bold p-4 rounded-2xl transition-all shadow-[0_16px_40px_-10px_rgba(124,58,237,0.6)] active:scale-[0.98]">
             Entrar na Sala
           </button>
-          <p class="text-center text-xs text-slate-600">Feito com WebRTC · funciona até em redes com DNS restrito</p>
+          <p class="text-center text-xs text-slate-600">Feito com WebRTC Â· funciona atÃ© em redes com DNS restrito</p>
         </div>
       </div>
     </div>
@@ -191,7 +69,7 @@
       <div class="flex items-center glass rounded-xl p-1.5 gap-0.5">
         <svg class="w-3.5 h-3.5 text-indigo-400/60 ml-1.5 pointer-events-none hidden md:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
         <select id="quality-select" class="bg-transparent text-slate-300 text-xs md:text-sm outline-none cursor-pointer hover:text-white px-2 py-1 font-medium rounded-lg hover:bg-white/5 transition-colors">
-          <option value="auto" selected>✨ Qualidade: Auto</option>
+          <option value="auto" selected>âœ¨ Qualidade: Auto</option>
           <option value="360">360p</option>
           <option value="480">480p</option>
           <option value="720">720p HD</option>
@@ -203,7 +81,7 @@
         <span class="text-indigo-500/30 mx-1">|</span>
         
         <select id="fps-select" class="bg-transparent text-slate-300 text-xs md:text-sm outline-none cursor-pointer hover:text-white px-2 py-1 font-medium rounded-lg hover:bg-white/5 transition-colors">
-          <option value="auto" selected>✨ FPS: Auto</option>
+          <option value="auto" selected>âœ¨ FPS: Auto</option>
           <option value="30">30 FPS</option>
           <option value="60">60 FPS</option>
         </select>
@@ -219,7 +97,7 @@
   <!-- CORPO PRINCIPAL -->
   <div class="flex-1 flex flex-col md:flex-row overflow-hidden z-10 relative">
     
-    <!-- ÁREA DE VÍDEO -->
+    <!-- ÃREA DE VÃDEO -->
     <div class="flex-1 p-4 md:p-6 flex flex-col items-center justify-center overflow-y-auto relative">
       <div id="video-grid" class="w-full h-full grid gap-4 md:gap-5 items-center justify-center auto-rows-fr z-10"></div>
       
@@ -230,8 +108,8 @@
             <svg class="w-11 h-11 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
           </div>
         </div>
-        <p class="font-display font-bold text-xl text-slate-300">Nenhuma transmissão ativa</p>
-        <span class="text-sm text-slate-500 mt-1.5">Clique em <span class="text-indigo-400 font-semibold">Compartilhar Tela</span> lá em cima para começar o show</span>
+        <p class="font-display font-bold text-xl text-slate-300">Nenhuma transmissÃ£o ativa</p>
+        <span class="text-sm text-slate-500 mt-1.5">Clique em <span class="text-indigo-400 font-semibold">Compartilhar Tela</span> lÃ¡ em cima para comeÃ§ar o show</span>
       </div>
     </div>
 
@@ -298,7 +176,7 @@
     const fpsSelect = document.getElementById('fps-select');
     const connBadge = document.getElementById('conn-badge');
 
-    // Status de conexão com o servidor
+    // Status de conexÃ£o com o servidor
     function atualizarStatusConexao(estado) {
       const configs = {
         conectando: { cor: 'bg-amber-500/20 border-amber-500/40 text-amber-400', ponto: 'bg-amber-400', texto: 'Conectando...' },
@@ -358,13 +236,13 @@
       const msg = chatInput.value.trim();
       if (!msg) return;
       
-      // Exibe a própria mensagem formatada lindamente
+      // Exibe a prÃ³pria mensagem formatada lindamente
       adicionarMensagemChat(username, msg, true);
       socket.emit('chat-message', { name: username, message: msg });
       chatInput.value = '';
     });
 
-    // Som de notificação gerado por código (sem arquivo externo)
+    // Som de notificaÃ§Ã£o gerado por cÃ³digo (sem arquivo externo)
     function tocarSomNotificacao() {
       try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -378,21 +256,21 @@
         gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
         osc.start();
         osc.stop(ctx.currentTime + 0.25);
-      } catch (e) { /* som não é crítico */ }
+      } catch (e) { /* som nÃ£o Ã© crÃ­tico */ }
     }
 
     socket.on('chat-message', (data) => {
       adicionarMensagemChat(data.name, data.message, false);
     });
 
-    // Proteção contra XSS: escapa qualquer HTML que o usuário digitar
+    // ProteÃ§Ã£o contra XSS: escapa qualquer HTML que o usuÃ¡rio digitar
     function escaparHTML(texto) {
       const div = document.createElement('div');
       div.textContent = texto;
       return div.innerHTML;
     }
 
-    // Paleta de avatares: cada usuário ganha uma cor única baseada no nome
+    // Paleta de avatares: cada usuÃ¡rio ganha uma cor Ãºnica baseada no nome
     const PALETA_AVATAR = [
       'from-indigo-500 to-blue-500', 'from-fuchsia-500 to-pink-500', 'from-emerald-500 to-teal-500',
       'from-amber-500 to-orange-500', 'from-violet-500 to-purple-500', 'from-cyan-500 to-sky-500',
@@ -416,21 +294,23 @@
           ${escaparHTML(autor.charAt(0).toUpperCase())}
         </div>
         <div class="flex flex-col ${souEu ? 'items-end' : 'items-start'} max-w-[80%]">
-          <span class="text-[10px] text-slate-500 mb-1 px-1 font-medium">${escaparHTML(autor)} <span class="text-slate-600">· ${hora}</span></span>
+          <span class="text-[10px] text-slate-500 mb-1 px-1 font-medium">${escaparHTML(autor)} <span class="text-slate-600">Â· ${hora}</span></span>
           <div class="${souEu ? 'bolha-minha text-white rounded-2xl rounded-tr-md' : 'glass text-slate-200 rounded-2xl rounded-tl-md'} px-4 py-2.5 shadow-md leading-relaxed whitespace-pre-wrap break-words">
             ${escaparHTML(texto)}
           </div>
         </div>
       `;
       chatMessages.appendChild(div);
-      chatMessages.scrollTop = chatMessages.scrollHeight;
+      // Auto-scroll sÃ³ se o usuÃ¡rio jÃ¡ estÃ¡ perto do fim (nÃ£o rouba o scroll de quem lÃª mensagens antigas)
+      const pertoDoFim = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight < 120;
+      if (pertoDoFim) chatMessages.scrollTop = chatMessages.scrollHeight;
       
       if (!souEu) tocarSomNotificacao();
     }
 
     socket.on('update-users', (users) => {
       participantsList.innerHTML = '';
-      // Conta nomes repetidos pra diferenciar "(Você #2)" e evitar confusão visual
+      // Conta nomes repetidos pra diferenciar "(VocÃª #2)" e evitar confusÃ£o visual
       const contagem = {};
       users.forEach(u => { contagem[u.name] = (contagem[u.name] || 0) + 1; });
       onlineCount.innerHTML = `
@@ -438,6 +318,8 @@
         ${users.length} online
       `;
       
+      // DocumentFragment: monta tudo fora do DOM e insere 1x sÃ³ (menos reflow)
+      const frag = document.createDocumentFragment();
       users.forEach(user => {
         const div = document.createElement('div');
         div.className = 'flex items-center gap-3 text-sm py-2 px-3 rounded-xl hover:bg-indigo-500/10 transition-colors border border-transparent hover:border-indigo-500/20';
@@ -447,31 +329,33 @@
           <div class="w-8 h-8 rounded-xl bg-gradient-to-tr ${grad} flex items-center justify-center text-xs font-display font-bold text-white shadow-md">
             ${escaparHTML(user.name.charAt(0).toUpperCase())}
           </div>
-          <span class="text-slate-300 font-medium">${escaparHTML(user.name)} <span class="text-indigo-400/70 font-normal text-xs">${isMe ? '(Você)' : ''}</span></span>
+          <span class="text-slate-300 font-medium">${escaparHTML(user.name)} <span class="text-indigo-400/70 font-normal text-xs">${isMe ? '(VocÃª)' : ''}</span></span>
           <span class="ml-auto w-2 h-2 rounded-full ${isMe ? 'bg-indigo-400' : 'bg-emerald-400'} animate-pulse"></span>
         `;
-        participantsList.appendChild(div);
+        frag.appendChild(div);
       });
+      participantsList.appendChild(frag);
     });
 
     socket.on('new-user', (newUserId) => {
       if (localStream) socket.emit('notify-already-sharing', newUserId);
     });
 
-    // Estima o bitrate ideal com base na conexão de internet do usuário
+    // Estima o bitrate ideal com base na conexÃ£o de internet do usuÃ¡rio
     async function detectarBitrateAutomatico() {
       try {
-        const inicio = Date.now();
-        await fetch('https://cdn.tailwindcss.com', { cache: 'no-store' });
-        const pingMs = Date.now() - inicio;
+        // Mede a latÃªncia com o prÃ³prio servidor (rÃ¡pido e local)
+        const inicio = performance.now();
+        await fetch('/socket.io/socket.io.js', { cache: 'no-store' });
+        const pingMs = performance.now() - inicio;
         
         // Downlink estimado pelo navegador
         const downlink = navigator.connection?.downlink || 10; // Mbps
         
-        // Envia no máximo ~40% da conexão pra não travar
+        // Envia no mÃ¡ximo ~40% da conexÃ£o pra nÃ£o travar
         let estimado = (downlink * 0.4);
         
-        // Conexão lenta = reduz mais ainda
+        // ConexÃ£o lenta = reduz mais ainda
         if (pingMs > 150) estimado *= 0.5;
         
         return Math.min(Math.max(estimado * 1000000, 1000000), 6000000);
@@ -488,10 +372,10 @@
           if (qualitySelect.value === 'auto' || fpsSelect.value === 'auto') {
             height = window.screen.height;
             width = window.screen.width;
-            fps = 30; // 30fps padrão no auto = menos travamento que 60fps
+            fps = 30; // 30fps padrÃ£o no auto = menos travamento que 60fps
             fpsEscolhido = 30;
             taxaDeBitsIdeal = await detectarBitrateAutomatico();
-            // Em modo auto, trava o teto conforme o número de espectadores (upload dividido)
+            // Em modo auto, trava o teto conforme o nÃºmero de espectadores (upload dividido)
             const espectadores = Object.keys(peers).length;
             if (espectadores > 2) taxaDeBitsIdeal = Math.floor(taxaDeBitsIdeal / espectadores);
 
@@ -505,7 +389,7 @@
             fpsEscolhido = fps;
             width = Math.round((height * 16) / 9); 
 
-            // Bitrates realistas (2 a 3x menores que antes) = transmissão fluida
+            // Bitrates realistas (2 a 3x menores que antes) = transmissÃ£o fluida
             if (height <= 360) taxaDeBitsIdeal = 800000;
             else if (height <= 480) taxaDeBitsIdeal = 1200000;
             else if (height <= 720) taxaDeBitsIdeal = 2500000;
@@ -526,10 +410,10 @@
           
           adicionarVideoUI('Sua Tela', localStream, true);
           
-          // Estilo do botão de PARAR
+          // Estilo do botÃ£o de PARAR
           shareBtn.innerHTML = `
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-            <span class="hidden sm:inline">Parar Transmissão</span><span class="sm:hidden">Parar</span>
+            <span class="hidden sm:inline">Parar TransmissÃ£o</span><span class="sm:hidden">Parar</span>
           `;
           shareBtn.classList.replace('from-indigo-600', 'from-rose-600');
           shareBtn.classList.replace('via-violet-600', 'via-red-600');
@@ -559,7 +443,7 @@
       const myVideo = document.getElementById('video-local');
       if (myVideo) myVideo.remove();
       
-      // Volta o botão ao normal
+      // Volta o botÃ£o ao normal
       shareBtn.innerHTML = `
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
         <span class="hidden sm:inline">Compartilhar Tela</span><span class="sm:hidden">Compartilhar</span>
@@ -576,26 +460,44 @@
       socket.emit('stop-share');
     }
 
+    // Adiciona tracks com SIMULCAST: envia 3 camadas de qualidade
+    // (ex: 1080p + 540p + 270p). Cada espectador recebe sÃ³ a que sua rede aguenta.
     function adicionarTracksComAltaQualidade(pc, stream) {
       stream.getTracks().forEach(track => {
-        const sender = pc.addTrack(track, stream);
         if (track.kind === 'video') {
+          // Hints de conteÃºdo: diz ao encoder que Ã© tela compartilhada
+          // (prioriza nitidez quando parado, fluidez quando em movimento)
+          try {
+            if (track.contentHint !== undefined) {
+              track.contentHint = localStorage.getItem('hint-detalhe') === '1' ? 'detail' : 'text';
+            }
+          } catch (e) {}
+
+          const sender = pc.addTrack(track, stream);
           const parameters = sender.getParameters();
-          if (!parameters.encodings) parameters.encodings = [{}];
+          if (!parameters.encodings) parameters.encodings = [{}, {}, {}];
+          while (parameters.encodings.length < 3) parameters.encodings.push({});
           
-          // Inicia um pouco abaixo do teto: sobe depois se a rede aguentar
-          parameters.encodings[0].maxBitrate = Math.floor(taxaDeBitsIdeal * 0.6);
+          const base = Math.floor(taxaDeBitsIdeal * 0.6);
+          // Camada alta, mÃ©dia (metade), baixa (1/4) â€” receptor escolhe sozinho
+          parameters.encodings[0].maxBitrate = base;
+          parameters.encodings[1].maxBitrate = Math.max(Math.floor(base * 0.5), 150000);
+          parameters.encodings[1].scaleResolutionDownBy = 2;
+          parameters.encodings[2].maxBitrate = Math.max(Math.floor(base * 0.25), 80000);
+          parameters.encodings[2].scaleResolutionDownBy = 4;
           parameters.encodings[0].maxFramerate = fpsEscolhido;
           parameters.encodings[0].priority = 'high';
           parameters.degradationPreference = 'maintain-framerate';
           
           sender.setParameters(parameters).catch(e => console.error(e));
+        } else {
+          pc.addTrack(track, stream);
         }
       });
     }
 
     // ===== CONTROLE DE CONGESTIONAMENTO EM TEMPO REAL =====
-    // Observa perda de pacotes, RTT e nível do buffer (os sinais REAIS de travamento)
+    // Observa perda de pacotes, RTT e nÃ­vel do buffer (os sinais REAIS de travamento)
     // e ajusta bitrate/fps por espectador de forma independente.
     function monitorarQualidade(pc, alvoVideo) {
       let ultimo = { bytes: 0, frames: 0, t: Date.now() };
@@ -603,7 +505,7 @@
       let decrescimosConsecutivos = 0;
       const minimo = 400000;
       const passoBaixa = 0.7;   // corta 30% quando detecta congestionamento
-      const passoAlta = 1.15;   // sobe 15% quando a rede está sobrando
+      const passoAlta = 1.15;   // sobe 15% quando a rede estÃ¡ sobrando
       
       const ajustar = (novoBitrate, motivo) => {
         const sender = pc.getSenders().find(s => s.track?.kind === 'video');
@@ -633,7 +535,7 @@
           const dt = (agora - ultimo.t) / 1000;
           if (dt < 2) return;
 
-          // Métricas-chave
+          // MÃ©tricas-chave
           const kbps = ((out.bytesSent - ultimo.bytes) * 8) / dt / 1000;
           const pacotesPerdidos = out.packetsLost ?? 0;
           const totalPacotes = out.packetsSent ?? 0;
@@ -644,26 +546,26 @@
 
           if (bitrateAtual === undefined) bitrateAtual = Math.floor(taxaDeBitsIdeal * 0.6);
 
-          // Regra 1: perda de pacotes alta = congestionamento real, corta rápido
+          // Regra 1: perda de pacotes alta = congestionamento real, corta rÃ¡pido
           if (taxaPerda > 0.05) {
             decrescimosConsecutivos++;
-            ajustar(Math.max(Math.floor((bitrateAtual || taxaDeBitsIdeal) * passoBaixa), minimo), `🔴 Perda ${(taxaPerda*100).toFixed(1)}% · reduzindo`);
+            ajustar(Math.max(Math.floor((bitrateAtual || taxaDeBitsIdeal) * passoBaixa), minimo), `ðŸ”´ Perda ${(taxaPerda*100).toFixed(1)}% Â· reduzindo`);
             return;
           }
           // Regra 2: RTT alto = caminho ruim, corta suave
           if (rtt > 0.35) {
-            ajustar(Math.max(Math.floor((bitrateAtual || taxaDeBitsIdeal) * 0.85), minimo), `🟡 RTT ${(rtt*1000)|0}ms · ajustando`);
+            ajustar(Math.max(Math.floor((bitrateAtual || taxaDeBitsIdeal) * 0.85), minimo), `ðŸŸ¡ RTT ${(rtt*1000)|0}ms Â· ajustando`);
             return;
           }
-          // Regra 3: FPS real desabou bem abaixo do alvo = encoder não acompanha (CPU ou rede)
+          // Regra 3: FPS real desabou bem abaixo do alvo = encoder nÃ£o acompanha (CPU ou rede)
           if (fpsReal > 0 && fpsReal < fpsEscolhido * 0.6) {
-            ajustar(Math.max(Math.floor((bitrateAtual || taxaDeBitsIdeal) * 0.8), minimo), `🟡 FPS ${(fpsReal).toFixed(0)} · aliviando encoder`);
+            ajustar(Math.max(Math.floor((bitrateAtual || taxaDeBitsIdeal) * 0.8), minimo), `ðŸŸ¡ FPS ${(fpsReal).toFixed(0)} Â· aliviando encoder`);
             return;
           }
           decrescimosConsecutivos = 0;
-          // Regra 4: rede saudável e enviando perto do teto = sobe gradualmente
+          // Regra 4: rede saudÃ¡vel e enviando perto do teto = sobe gradualmente
           if (kbps > 0 && bitrateAtual < taxaDeBitsIdeal && kbps > bitrateAtual / 1000 * 0.9) {
-            ajustar(Math.min(Math.floor(bitrateAtual * passoAlta), taxaDeBitsIdeal), `🟢 Bem · subindo p/ ${(Math.min(Math.floor(bitrateAtual * passoAlta), taxaDeBitsIdeal)/1e6).toFixed(1)} Mbps`);
+            ajustar(Math.min(Math.floor(bitrateAtual * passoAlta), taxaDeBitsIdeal), `ðŸŸ¢ Bem Â· subindo p/ ${(Math.min(Math.floor(bitrateAtual * passoAlta), taxaDeBitsIdeal)/1e6).toFixed(1)} Mbps`);
           }
         } catch (e) { /* silencioso */ }
       }, 3000);
@@ -671,7 +573,7 @@
       controlesEnvio.set(pc, intervalo);
     }
 
-    // Overlay com estatísticas ao vivo no cartão do vídeo (pra quem transmite)
+    // Overlay com estatÃ­sticas ao vivo no cartÃ£o do vÃ­deo (pra quem transmite)
     function atualizarInfoOverlay(videoEl, texto) {
       const container = videoEl?.closest('[id^="video-"]');
       if (!container) return;
@@ -687,7 +589,7 @@
       overlay._timer = setTimeout(() => overlay.style.opacity = '0', 4000);
     }
 
-    // Fecha um peer antigo com segurança (evita duplicação de cards/monitores)
+    // Fecha um peer antigo com seguranÃ§a (evita duplicaÃ§Ã£o de cards/monitores)
     function fecharPeer(id) {
       if (peers[id]) {
         const itv = controlesEnvio.get(peers[id]);
@@ -697,8 +599,44 @@
       }
     }
 
+    // Monitora RTT do receptor e mostra ping ao vivo no card (badge colorido)
+    function monitorarPingReceptor(pc, id) {
+      let ultimoRTT = null;
+      const badge = () => {
+        const card = document.getElementById(`video-${id}`);
+        if (!card) return null;
+        let el = card.querySelector('.ping-badge');
+        if (!el) {
+          el = document.createElement('div');
+          el.className = 'ping-badge absolute top-3 left-3 glass text-[10px] px-2.5 py-1 rounded-lg font-mono font-bold shadow pointer-events-none z-20 transition-colors';
+          card.appendChild(el);
+        }
+        return el;
+      };
+      const intervalo = setInterval(async () => {
+        if (pc.connectionState !== 'connected') { clearInterval(intervalo); return; }
+        try {
+          const stats = await pc.getStats();
+          stats.forEach(r => {
+            if (r.type === 'candidate-pair' && r.state === 'succeeded' && r.currentRoundTripTime !== undefined) {
+              ultimoRTT = r.currentRoundTripTime * 1000;
+            }
+          });
+          const el = badge();
+          if (el && ultimoRTT !== null) {
+            const cor = ultimoRTT < 80 ? 'text-emerald-400 border-emerald-500/30' 
+                       : ultimoRTT < 200 ? 'text-amber-400 border-amber-500/30' 
+                       : 'text-rose-400 border-rose-500/30';
+            el.className = `ping-badge absolute top-3 left-3 glass text-[10px] px-2.5 py-1 rounded-lg font-mono font-bold shadow pointer-events-none z-20 border ${cor}`;
+            el.textContent = `â± ${Math.round(ultimoRTT)}ms`;
+          }
+        } catch (e) { /* silencioso */ }
+      }, 2000);
+      controlesEnvio.set(pc, intervalo);
+    }
+
     socket.on('user-started-share', async (id) => {
-      fecharPeer(id); // se havia conexão antiga, limpa antes
+      fecharPeer(id); // se havia conexÃ£o antiga, limpa antes
       const pc = new RTCPeerConnection(rtcConfig);
       peers[id] = pc;
       
@@ -709,15 +647,16 @@
       }
 
       pc.ontrack = (event) => {
-        // Buffer de jitter maior no receptor = absorve variações de rede sem travar
+        // Buffer de jitter maior no receptor = absorve variaÃ§Ãµes de rede sem travar
         event.receivers?.forEach(r => { if (r.jitterBufferTarget !== undefined) r.jitterBufferTarget = 500; });
         adicionarVideoUI(`Tela de Amigo`, event.streams[0], false, id);
+        if (!localStream) monitorarPingReceptor(pc, id); // quem assiste vÃª o ping
       };
       pc.onicecandidate = (event) => { if (event.candidate) socket.emit('ice-candidate', { target: id, candidate: event.candidate }); };
-      // Reconexão automática se a conexão cair
+      // ReconexÃ£o automÃ¡tica se a conexÃ£o cair
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === 'failed') pc.restartIce();
-        // Peer sumiu por muito tempo = remove pra não deixar tela congelada
+        // Peer sumiu por muito tempo = remove pra nÃ£o deixar tela congelada
         if (pc.connectionState === 'disconnected') {
           setTimeout(() => {
             if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
@@ -739,7 +678,7 @@
     });
 
     socket.on('offer', async ({ sender, offer }) => {
-      fecharPeer(sender); // evita peer duplicado em re-negociação
+      fecharPeer(sender); // evita peer duplicado em re-negociaÃ§Ã£o
       const pc = new RTCPeerConnection(rtcConfig);
       peers[sender] = pc;
       
@@ -750,9 +689,10 @@
       }
 
       pc.ontrack = (event) => {
-        // Buffer de jitter maior no receptor = absorve variações de rede sem travar
+        // Buffer de jitter maior no receptor = absorve variaÃ§Ãµes de rede sem travar
         event.receivers?.forEach(r => { if (r.jitterBufferTarget !== undefined) r.jitterBufferTarget = 500; });
         adicionarVideoUI(`Tela de Amigo`, event.streams[0], false, sender);
+        if (!localStream) monitorarPingReceptor(pc, sender); // quem assiste vÃª o ping
       };
       pc.onicecandidate = (event) => { if (event.candidate) socket.emit('ice-candidate', { target: sender, candidate: event.candidate }); };
       pc.onconnectionstatechange = () => {
@@ -806,8 +746,8 @@
       if (isLocal) video.muted = true;
       video.className = 'w-full h-full object-contain';
 
-      // BUFFER ADAPTATIVO NO RECEPTOR: se o vídeo congela (frames descartados),
-      // aumenta o alvo de jitter buffer até 1500ms pra absorver a oscilação da rede
+      // BUFFER ADAPTATIVO NO RECEPTOR: se o vÃ­deo congela (frames descartados),
+      // aumenta o alvo de jitter buffer atÃ© 1500ms pra absorver a oscilaÃ§Ã£o da rede
       if (!isLocal) {
         let bufferAlvo = 500;
         let ultimoCheck = { t: Date.now(), congelados: 0 };
@@ -840,11 +780,11 @@
       container.appendChild(label);
 
       if (!isLocal) {
-        // Painel de controles do espectador (aparece no hover / sempre visível no celular)
+        // Painel de controles do espectador (aparece no hover / sempre visÃ­vel no celular)
         const controls = document.createElement('div');
         controls.className = 'absolute top-3 right-3 flex items-center gap-1 glass rounded-xl p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity border-indigo-500/20';
 
-        // Botão mudo/áudio
+        // BotÃ£o mudo/Ã¡udio
         const btnMudo = document.createElement('button');
         btnMudo.title = 'Mutar / Ativar som';
         btnMudo.className = 'text-slate-300 hover:text-white hover:bg-indigo-500/20 p-1.5 rounded-lg transition-colors';
@@ -870,7 +810,7 @@
         volume.addEventListener('input', () => { video.volume = volume.value / 100; });
         volume.addEventListener('click', (e) => e.stopPropagation());
 
-        // Botão Picture-in-Picture
+        // BotÃ£o Picture-in-Picture
         const btnPip = document.createElement('button');
         btnPip.title = 'Picture-in-Picture (janelinha flutuante)';
         btnPip.className = 'text-slate-300 hover:text-white hover:bg-indigo-500/20 p-1.5 rounded-lg transition-colors';
@@ -880,10 +820,10 @@
           try {
             if (document.pictureInPictureElement) await document.exitPictureInPicture();
             else await video.requestPictureInPicture();
-          } catch (err) { console.warn('PiP não suportado:', err); }
+          } catch (err) { console.warn('PiP nÃ£o suportado:', err); }
         });
 
-        // Botão tela cheia
+        // BotÃ£o tela cheia
         const btnFull = document.createElement('button');
         btnFull.title = 'Tela cheia';
         btnFull.className = 'text-slate-300 hover:text-white hover:bg-indigo-500/20 p-1.5 rounded-lg transition-colors';
@@ -900,13 +840,13 @@
         controls.appendChild(btnFull);
         container.appendChild(controls);
 
-        // Duplo clique = tela cheia (atalho rápido)
+        // Duplo clique = tela cheia (atalho rÃ¡pido)
         container.addEventListener('dblclick', () => {
           if (document.fullscreenElement) document.exitFullscreen();
           else container.requestFullscreen().catch(() => {});
         });
       } else {
-        // Tela local: só botão de tela cheia
+        // Tela local: sÃ³ botÃ£o de tela cheia
         const btnFull = document.createElement('button');
         btnFull.title = 'Tela cheia';
         btnFull.className = 'absolute top-3 right-3 text-slate-300 hover:text-white hover:bg-indigo-500/20 glass border-indigo-500/20 p-1.5 rounded-lg transition-colors opacity-0 md:group-hover:opacity-100';
@@ -937,5 +877,7 @@
       }
     }
   </script>
+  <div hidden class="border-emerald-500/30 border-amber-500/30 border-rose-500/30 hover:from-rose-500 hover:via-red-500 hover:to-orange-500 hover:from-indigo-500 hover:via-violet-500 hover:to-fuchsia-500 ping-badge stats-overlay text-emerald-300"></div>
 </body>
 </html>
+

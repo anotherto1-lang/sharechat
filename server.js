@@ -1,4 +1,5 @@
 const express = require('express');
+const compression = require('compression');
 const app = express();
 const http = require('http');
 const path = require('path');
@@ -11,8 +12,20 @@ const io = new Server(server, {
   pingTimeout: 25000
 });
 
+// Gzip: comprime tudo (HTML/CSS/JS chega 3-4x menor pela rede)
+app.use(compression());
+
 // IMPORTANTE PARA A WEB: O servidor precisa entregar a pasta 'public' para o navegador
-app.use(express.static(path.join(__dirname, 'public')));
+// Cache de 7 dias para arquivos com hash/versão; HTML sem cache (sempre atualiza)
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders(res, filePath) {
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache');
+    } else if (filePath.endsWith('.css') || filePath.endsWith('.js') || filePath.endsWith('.woff2')) {
+      res.setHeader('Cache-Control', 'public, max-age=604800');
+    }
+  }
+}));
 
 let users = [];
 
