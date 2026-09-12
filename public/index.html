@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ShareChat â€” Compartilhe sua tela ao vivo</title>
+  <title>ShareChat — Compartilhe sua tela ao vivo</title>
   <link rel="stylesheet" href="/tailwind.css">
   <script src="/socket.io/socket.io.js"></script> 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -34,7 +34,7 @@
           </div>
         </div>
         <h2 class="font-display text-3xl font-extrabold text-white text-center tracking-tight">Bem-vindo ao <span class="text-aurora">ShareChat</span></h2>
-        <p class="text-slate-400 text-sm text-center mt-2 mb-8">Compartilhe sua tela com os amigos em tempo real â€” sem travar, em qualquer rede.</p>
+        <p class="text-slate-400 text-sm text-center mt-2 mb-8">Compartilhe sua tela com os amigos em tempo real — sem travar, em qualquer rede.</p>
         
         <div class="space-y-4 relative">
           <div class="relative">
@@ -44,7 +44,7 @@
           <button id="join-btn" class="btn-magico w-full bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 hover:from-indigo-500 hover:via-violet-500 hover:to-fuchsia-500 text-white font-display font-bold p-4 rounded-2xl transition-all shadow-[0_16px_40px_-10px_rgba(124,58,237,0.6)] active:scale-[0.98]">
             Entrar na Sala
           </button>
-          <p class="text-center text-xs text-slate-600">Feito com WebRTC Â· funciona atÃ© em redes com DNS restrito</p>
+          <p class="text-center text-xs text-slate-600">Feito com WebRTC · funciona até em redes com DNS restrito</p>
         </div>
       </div>
     </div>
@@ -104,7 +104,7 @@
   <!-- CORPO PRINCIPAL -->
   <div class="flex-1 flex flex-col md:flex-row overflow-hidden z-10 relative">
     
-    <!-- ÃREA DE VÃDEO -->
+    <!-- ÁREA DE VÍDEO -->
     <div class="flex-1 p-4 md:p-6 flex flex-col items-center justify-center overflow-y-auto relative">
       <div id="video-grid" class="w-full h-full grid gap-4 md:gap-5 items-center justify-center auto-rows-fr z-10"></div>
       
@@ -115,8 +115,8 @@
             <svg class="w-11 h-11 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
           </div>
         </div>
-        <p class="font-display font-bold text-xl text-slate-300">Nenhuma transmissÃ£o ativa</p>
-        <span class="text-sm text-slate-500 mt-1.5">Clique em <span class="text-indigo-400 font-semibold">Compartilhar Tela</span> lÃ¡ em cima para comeÃ§ar o show</span>
+        <p class="font-display font-bold text-xl text-slate-300">Nenhuma transmissão ativa</p>
+        <span class="text-sm text-slate-500 mt-1.5">Clique em <span class="text-indigo-400 font-semibold">Compartilhar Tela</span> lá em cima para começar o show</span>
       </div>
     </div>
 
@@ -186,7 +186,7 @@
 
     const isModoJogo = () => modoSelect.value === 'jogo';
 
-    // Status de conexÃ£o com o servidor
+    // Status de conexão com o servidor
     function atualizarStatusConexao(estado) {
       const configs = {
         conectando: { cor: 'bg-amber-500/20 border-amber-500/40 text-amber-400', ponto: 'bg-amber-400', texto: 'Conectando...' },
@@ -246,13 +246,13 @@
       const msg = chatInput.value.trim();
       if (!msg) return;
       
-      // Exibe a prÃ³pria mensagem formatada lindamente
+      // Exibe a própria mensagem formatada lindamente
       adicionarMensagemChat(username, msg, true);
       socket.emit('chat-message', { name: username, message: msg });
       chatInput.value = '';
     });
 
-    // Som de notificaÃ§Ã£o gerado por cÃ³digo (sem arquivo externo)
+    // Som de notificação gerado por código (sem arquivo externo)
     function tocarSomNotificacao() {
       try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -266,21 +266,21 @@
         gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
         osc.start();
         osc.stop(ctx.currentTime + 0.25);
-      } catch (e) { /* som nÃ£o Ã© crÃ­tico */ }
+      } catch (e) { /* som não é crítico */ }
     }
 
     socket.on('chat-message', (data) => {
       adicionarMensagemChat(data.name, data.message, false);
     });
 
-    // ProteÃ§Ã£o contra XSS: escapa qualquer HTML que o usuÃ¡rio digitar
+    // Proteção contra XSS: escapa qualquer HTML que o usuário digitar
     function escaparHTML(texto) {
       const div = document.createElement('div');
       div.textContent = texto;
       return div.innerHTML;
     }
 
-    // Paleta de avatares: cada usuÃ¡rio ganha uma cor Ãºnica baseada no nome
+    // Paleta de avatares: cada usuário ganha uma cor única baseada no nome
     const PALETA_AVATAR = [
       'from-indigo-500 to-blue-500', 'from-fuchsia-500 to-pink-500', 'from-emerald-500 to-teal-500',
       'from-amber-500 to-orange-500', 'from-violet-500 to-purple-500', 'from-cyan-500 to-sky-500',
@@ -304,14 +304,14 @@
           ${escaparHTML(autor.charAt(0).toUpperCase())}
         </div>
         <div class="flex flex-col ${souEu ? 'items-end' : 'items-start'} max-w-[80%]">
-          <span class="text-[10px] text-slate-500 mb-1 px-1 font-medium">${escaparHTML(autor)} <span class="text-slate-600">Â· ${hora}</span></span>
+          <span class="text-[10px] text-slate-500 mb-1 px-1 font-medium">${escaparHTML(autor)} <span class="text-slate-600">· ${hora}</span></span>
           <div class="${souEu ? 'bolha-minha text-white rounded-2xl rounded-tr-md' : 'glass text-slate-200 rounded-2xl rounded-tl-md'} px-4 py-2.5 shadow-md leading-relaxed whitespace-pre-wrap break-words">
             ${escaparHTML(texto)}
           </div>
         </div>
       `;
       chatMessages.appendChild(div);
-      // Auto-scroll sÃ³ se o usuÃ¡rio jÃ¡ estÃ¡ perto do fim (nÃ£o rouba o scroll de quem lÃª mensagens antigas)
+      // Auto-scroll só se o usuário já está perto do fim (não rouba o scroll de quem lê mensagens antigas)
       const pertoDoFim = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight < 120;
       if (pertoDoFim) chatMessages.scrollTop = chatMessages.scrollHeight;
       
@@ -320,7 +320,7 @@
 
     socket.on('update-users', (users) => {
       participantsList.innerHTML = '';
-      // Conta nomes repetidos pra diferenciar "(VocÃª #2)" e evitar confusÃ£o visual
+      // Conta nomes repetidos pra diferenciar "(Você #2)" e evitar confusão visual
       const contagem = {};
       users.forEach(u => { contagem[u.name] = (contagem[u.name] || 0) + 1; });
       onlineCount.innerHTML = `
@@ -328,7 +328,7 @@
         ${users.length} online
       `;
       
-      // DocumentFragment: monta tudo fora do DOM e insere 1x sÃ³ (menos reflow)
+      // DocumentFragment: monta tudo fora do DOM e insere 1x só (menos reflow)
       const frag = document.createDocumentFragment();
       users.forEach(user => {
         const div = document.createElement('div');
@@ -339,7 +339,7 @@
           <div class="w-8 h-8 rounded-xl bg-gradient-to-tr ${grad} flex items-center justify-center text-xs font-display font-bold text-white shadow-md">
             ${escaparHTML(user.name.charAt(0).toUpperCase())}
           </div>
-          <span class="text-slate-300 font-medium">${escaparHTML(user.name)} <span class="text-indigo-400/70 font-normal text-xs">${isMe ? '(VocÃª)' : ''}</span></span>
+          <span class="text-slate-300 font-medium">${escaparHTML(user.name)} <span class="text-indigo-400/70 font-normal text-xs">${isMe ? '(Você)' : ''}</span></span>
           <span class="ml-auto w-2 h-2 rounded-full ${isMe ? 'bg-indigo-400' : 'bg-emerald-400'} animate-pulse"></span>
         `;
         frag.appendChild(div);
@@ -351,10 +351,10 @@
       if (localStream) socket.emit('notify-already-sharing', newUserId);
     });
 
-    // Estima o bitrate ideal com base na conexÃ£o de internet do usuÃ¡rio
+    // Estima o bitrate ideal com base na conexão de internet do usuário
     async function detectarBitrateAutomatico() {
       try {
-        // Mede a latÃªncia com o prÃ³prio servidor (rÃ¡pido e local)
+        // Mede a latência com o próprio servidor (rápido e local)
         const inicio = performance.now();
         await fetch('/socket.io/socket.io.js', { cache: 'no-store' });
         const pingMs = performance.now() - inicio;
@@ -362,10 +362,10 @@
         // Downlink estimado pelo navegador
         const downlink = navigator.connection?.downlink || 10; // Mbps
         
-        // Envia no mÃ¡ximo ~40% da conexÃ£o pra nÃ£o travar
+        // Envia no máximo ~40% da conexão pra não travar
         let estimado = (downlink * 0.4);
         
-        // ConexÃ£o lenta = reduz mais ainda
+        // Conexão lenta = reduz mais ainda
         if (pingMs > 150) estimado *= 0.5;
         
         return Math.min(Math.max(estimado * 1000000, 1000000), 6000000);
@@ -419,7 +419,7 @@
             fpsEscolhido = fps;
             width = Math.round((height * 16) / 9); 
 
-            // Bitrates realistas (2 a 3x menores que antes) = transmissÃ£o fluida
+            // Bitrates realistas (2 a 3x menores que antes) = transmissão fluida
             if (height <= 360) taxaDeBitsIdeal = 800000;
             else if (height <= 480) taxaDeBitsIdeal = 1200000;
             else if (height <= 720) taxaDeBitsIdeal = 2500000;
@@ -441,10 +441,10 @@
           
           adicionarVideoUI('Sua Tela', localStream, true);
           
-          // Estilo do botÃ£o de PARAR
+          // Estilo do botão de PARAR
           shareBtn.innerHTML = `
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-            <span class="hidden sm:inline">Parar TransmissÃ£o</span><span class="sm:hidden">Parar</span>
+            <span class="hidden sm:inline">Parar Transmissão</span><span class="sm:hidden">Parar</span>
           `;
           shareBtn.classList.replace('from-indigo-600', 'from-rose-600');
           shareBtn.classList.replace('via-violet-600', 'via-red-600');
@@ -477,7 +477,7 @@
       const myVideo = document.getElementById('video-local');
       if (myVideo) myVideo.remove();
       
-      // Volta o botÃ£o ao normal
+      // Volta o botão ao normal
       shareBtn.innerHTML = `
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
         <span class="hidden sm:inline">Compartilhar Tela</span><span class="sm:hidden">Compartilhar</span>
@@ -496,7 +496,7 @@
     }
 
     // Adiciona tracks com SIMULCAST: envia 3 camadas de qualidade
-    // (ex: 1080p + 540p + 270p). Cada espectador recebe sÃ³ a que sua rede aguenta.
+    // (ex: 1080p + 540p + 270p). Cada espectador recebe só a que sua rede aguenta.
     function adicionarTracksComAltaQualidade(pc, stream) {
       stream.getTracks().forEach(track => {
         if (track.kind === 'video') {
@@ -537,7 +537,7 @@
     }
 
     // ===== CONTROLE DE CONGESTIONAMENTO EM TEMPO REAL =====
-    // Observa perda de pacotes, RTT e nÃ­vel do buffer (os sinais REAIS de travamento)
+    // Observa perda de pacotes, RTT e nível do buffer (os sinais REAIS de travamento)
     // e ajusta bitrate/fps por espectador de forma independente.
     function monitorarQualidade(pc, alvoVideo) {
       let ultimo = { bytes: 0, frames: 0, t: Date.now() };
@@ -621,7 +621,7 @@
       controlesEnvio.set(pc, intervalo);
     }
 
-    // Overlay com estatÃ­sticas ao vivo no cartÃ£o do vÃ­deo (pra quem transmite)
+    // Overlay com estatísticas ao vivo no cartão do vídeo (pra quem transmite)
     function atualizarInfoOverlay(videoEl, texto) {
       const container = videoEl?.closest('[id^="video-"]');
       if (!container) return;
@@ -637,7 +637,7 @@
       overlay._timer = setTimeout(() => overlay.style.opacity = '0', 4000);
     }
 
-    // Fecha um peer antigo com seguranÃ§a (evita duplicaÃ§Ã£o de cards/monitores)
+    // Fecha um peer antigo com segurança (evita duplicação de cards/monitores)
     function fecharPeer(id) {
       if (peers[id]) {
         const itv = controlesEnvio.get(peers[id]);
@@ -684,7 +684,7 @@
     }
 
     socket.on('user-started-share', async (id) => {
-      fecharPeer(id); // se havia conexÃ£o antiga, limpa antes
+      fecharPeer(id); // se havia conexão antiga, limpa antes
       const pc = new RTCPeerConnection(rtcConfig);
       peers[id] = pc;
       
@@ -695,16 +695,16 @@
       }
 
       pc.ontrack = (event) => {
-        // Buffer de jitter maior no receptor = absorve variaÃ§Ãµes de rede sem travar
+        // Buffer de jitter maior no receptor = absorve variações de rede sem travar
         event.receivers?.forEach(r => { if (r.jitterBufferTarget !== undefined) r.jitterBufferTarget = 500; });
         adicionarVideoUI(`Tela de Amigo`, event.streams[0], false, id);
-        if (!localStream) monitorarPingReceptor(pc, id); // quem assiste vÃª o ping
+        if (!localStream) monitorarPingReceptor(pc, id); // quem assiste vê o ping
       };
       pc.onicecandidate = (event) => { if (event.candidate) socket.emit('ice-candidate', { target: id, candidate: event.candidate }); };
-      // ReconexÃ£o automÃ¡tica se a conexÃ£o cair
+      // Reconexão automática se a conexão cair
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === 'failed') pc.restartIce();
-        // Peer sumiu por muito tempo = remove pra nÃ£o deixar tela congelada
+        // Peer sumiu por muito tempo = remove pra não deixar tela congelada
         if (pc.connectionState === 'disconnected') {
           setTimeout(() => {
             if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
@@ -726,7 +726,7 @@
     });
 
     socket.on('offer', async ({ sender, offer }) => {
-      fecharPeer(sender); // evita peer duplicado em re-negociaÃ§Ã£o
+      fecharPeer(sender); // evita peer duplicado em re-negociação
       const pc = new RTCPeerConnection(rtcConfig);
       peers[sender] = pc;
       
@@ -737,10 +737,10 @@
       }
 
       pc.ontrack = (event) => {
-        // Buffer de jitter maior no receptor = absorve variaÃ§Ãµes de rede sem travar
+        // Buffer de jitter maior no receptor = absorve variações de rede sem travar
         event.receivers?.forEach(r => { if (r.jitterBufferTarget !== undefined) r.jitterBufferTarget = 500; });
         adicionarVideoUI(`Tela de Amigo`, event.streams[0], false, sender);
-        if (!localStream) monitorarPingReceptor(pc, sender); // quem assiste vÃª o ping
+        if (!localStream) monitorarPingReceptor(pc, sender); // quem assiste vê o ping
       };
       pc.onicecandidate = (event) => { if (event.candidate) socket.emit('ice-candidate', { target: sender, candidate: event.candidate }); };
       pc.onconnectionstatechange = () => {
@@ -794,8 +794,8 @@
       if (isLocal) video.muted = true;
       video.className = 'w-full h-full object-contain';
 
-      // BUFFER ADAPTATIVO NO RECEPTOR: se o vÃ­deo congela (frames descartados),
-      // aumenta o alvo de jitter buffer atÃ© 1500ms pra absorver a oscilaÃ§Ã£o da rede
+      // BUFFER ADAPTATIVO NO RECEPTOR: se o vídeo congela (frames descartados),
+      // aumenta o alvo de jitter buffer até 1500ms pra absorver a oscilação da rede
       if (!isLocal) {
         let bufferAlvo = 500;
         let ultimoCheck = { t: Date.now(), congelados: 0 };
@@ -828,11 +828,11 @@
       container.appendChild(label);
 
       if (!isLocal) {
-        // Painel de controles do espectador (aparece no hover / sempre visÃ­vel no celular)
+        // Painel de controles do espectador (aparece no hover / sempre visível no celular)
         const controls = document.createElement('div');
         controls.className = 'absolute top-3 right-3 flex items-center gap-1 glass rounded-xl p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity border-indigo-500/20';
 
-        // BotÃ£o mudo/Ã¡udio
+        // Botão mudo/áudio
         const btnMudo = document.createElement('button');
         btnMudo.title = 'Mutar / Ativar som';
         btnMudo.className = 'text-slate-300 hover:text-white hover:bg-indigo-500/20 p-1.5 rounded-lg transition-colors';
@@ -858,7 +858,7 @@
         volume.addEventListener('input', () => { video.volume = volume.value / 100; });
         volume.addEventListener('click', (e) => e.stopPropagation());
 
-        // BotÃ£o Picture-in-Picture
+        // Botão Picture-in-Picture
         const btnPip = document.createElement('button');
         btnPip.title = 'Picture-in-Picture (janelinha flutuante)';
         btnPip.className = 'text-slate-300 hover:text-white hover:bg-indigo-500/20 p-1.5 rounded-lg transition-colors';
@@ -868,10 +868,10 @@
           try {
             if (document.pictureInPictureElement) await document.exitPictureInPicture();
             else await video.requestPictureInPicture();
-          } catch (err) { console.warn('PiP nÃ£o suportado:', err); }
+          } catch (err) { console.warn('PiP não suportado:', err); }
         });
 
-        // BotÃ£o tela cheia
+        // Botão tela cheia
         const btnFull = document.createElement('button');
         btnFull.title = 'Tela cheia';
         btnFull.className = 'text-slate-300 hover:text-white hover:bg-indigo-500/20 p-1.5 rounded-lg transition-colors';
@@ -888,13 +888,13 @@
         controls.appendChild(btnFull);
         container.appendChild(controls);
 
-        // Duplo clique = tela cheia (atalho rÃ¡pido)
+        // Duplo clique = tela cheia (atalho rápido)
         container.addEventListener('dblclick', () => {
           if (document.fullscreenElement) document.exitFullscreen();
           else container.requestFullscreen().catch(() => {});
         });
       } else {
-        // Tela local: sÃ³ botÃ£o de tela cheia
+        // Tela local: só botão de tela cheia
         const btnFull = document.createElement('button');
         btnFull.title = 'Tela cheia';
         btnFull.className = 'absolute top-3 right-3 text-slate-300 hover:text-white hover:bg-indigo-500/20 glass border-indigo-500/20 p-1.5 rounded-lg transition-colors opacity-0 md:group-hover:opacity-100';
