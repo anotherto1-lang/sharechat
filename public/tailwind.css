@@ -111,3 +111,11 @@ select option { background: #0c1226; color: #e2e8f0; }
   background-image: radial-gradient(rgba(148, 163, 255, 0.07) 1px, transparent 1px);
   background-size: 22px 22px;
 }
+
+/* ===== MODO JOGO ATIVO: pausa efeitos pesados de GPU ===== */
+/* blur(120px) em 3 blobs consome GPU; durante stream de jogo, cada bit conta */
+.streaming-jogo .aurora::before,
+.streaming-jogo .aurora::after,
+.streaming-jogo .aurora .blob3 { animation: none !important; opacity: 0 !important; }
+.streaming-jogo .flutuar { animation: none !important; }
+.streaming-jogo .card-video:hover { box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.7); }

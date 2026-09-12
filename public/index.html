@@ -68,8 +68,15 @@
       <!-- Painel de Controles -->
       <div class="flex items-center glass rounded-xl p-1.5 gap-0.5">
         <svg class="w-3.5 h-3.5 text-indigo-400/60 ml-1.5 pointer-events-none hidden md:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+        <select id="modo-select" class="bg-transparent text-slate-300 text-xs md:text-sm outline-none cursor-pointer hover:text-white px-2 py-1 font-medium rounded-lg hover:bg-white/5 transition-colors">
+          <option value="tela" selected>🖥️ Tela</option>
+          <option value="jogo">🎮 Jogo</option>
+        </select>
+        
+        <span class="text-indigo-500/30 mx-1">|</span>
+        
         <select id="quality-select" class="bg-transparent text-slate-300 text-xs md:text-sm outline-none cursor-pointer hover:text-white px-2 py-1 font-medium rounded-lg hover:bg-white/5 transition-colors">
-          <option value="auto" selected>âœ¨ Qualidade: Auto</option>
+          <option value="auto" selected>✨ Qualidade: Auto</option>
           <option value="360">360p</option>
           <option value="480">480p</option>
           <option value="720">720p HD</option>
@@ -81,7 +88,7 @@
         <span class="text-indigo-500/30 mx-1">|</span>
         
         <select id="fps-select" class="bg-transparent text-slate-300 text-xs md:text-sm outline-none cursor-pointer hover:text-white px-2 py-1 font-medium rounded-lg hover:bg-white/5 transition-colors">
-          <option value="auto" selected>âœ¨ FPS: Auto</option>
+          <option value="auto" selected>✨ FPS: Auto</option>
           <option value="30">30 FPS</option>
           <option value="60">60 FPS</option>
         </select>
@@ -174,7 +181,10 @@
 
     const qualitySelect = document.getElementById('quality-select');
     const fpsSelect = document.getElementById('fps-select');
+    const modoSelect = document.getElementById('modo-select');
     const connBadge = document.getElementById('conn-badge');
+
+    const isModoJogo = () => modoSelect.value === 'jogo';
 
     // Status de conexÃ£o com o servidor
     function atualizarStatusConexao(estado) {
@@ -368,14 +378,34 @@
       if (!localStream) {
         try {
           let height, width, fps, dynamicConstraints;
+          const jogo = isModoJogo();
           
-          if (qualitySelect.value === 'auto' || fpsSelect.value === 'auto') {
+          if (jogo) {
+            // ===== MODO JOGO: 60fps, movimento fluido, prioriza encoder de hardware =====
+            fps = 60;
+            fpsEscolhido = 60;
+            height = parseInt(qualitySelect.value) > 0 ? parseInt(qualitySelect.value) : Math.min(window.screen.height, 1080);
+            width = Math.round((height * 16) / 9);
+            // Jogos precisam de bitrate maior pra não virar borrão em movimento
+            taxaDeBitsIdeal = height <= 720 ? 3500000 : height <= 1080 ? 5000000 : 7000000;
+            const espectadores = Object.keys(peers).length;
+            if (espectadores > 2) taxaDeBitsIdeal = Math.floor(taxaDeBitsIdeal / espectadores);
+
+            dynamicConstraints = {
+              video: {
+                width: { ideal: width, max: width },
+                height: { ideal: height, max: height },
+                frameRate: { ideal: 60, max: 60 }
+              },
+              audio: true
+            };
+          } else if (qualitySelect.value === 'auto' || fpsSelect.value === 'auto') {
             height = window.screen.height;
             width = window.screen.width;
-            fps = 30; // 30fps padrÃ£o no auto = menos travamento que 60fps
+            fps = 30; // 30fps padrão no auto = menos travamento que 60fps
             fpsEscolhido = 30;
             taxaDeBitsIdeal = await detectarBitrateAutomatico();
-            // Em modo auto, trava o teto conforme o nÃºmero de espectadores (upload dividido)
+            // Em modo auto, trava o teto conforme o número de espectadores (upload dividido)
             const espectadores = Object.keys(peers).length;
             if (espectadores > 2) taxaDeBitsIdeal = Math.floor(taxaDeBitsIdeal / espectadores);
 
@@ -407,6 +437,7 @@
           
           qualitySelect.disabled = true;
           fpsSelect.disabled = true;
+          modoSelect.disabled = true;
           
           adicionarVideoUI('Sua Tela', localStream, true);
           
@@ -424,6 +455,8 @@
           shareBtn.style.boxShadow = '0 10px 30px -8px rgba(244, 63, 94, 0.55)';
           
           localStream.getVideoTracks()[0].onended = () => pararCompartilhamento();
+          // Modo jogo: pausa a aurora de fundo (libera GPU pro encoder/jogo)
+          if (isModoJogo()) document.body.classList.add('streaming-jogo');
           socket.emit('start-share');
         } catch (err) {
           console.error("Compartilhamento cancelado ou falhou:", err);
@@ -440,6 +473,7 @@
       }
       qualitySelect.disabled = false;
       fpsSelect.disabled = false;
+      modoSelect.disabled = false;
       const myVideo = document.getElementById('video-local');
       if (myVideo) myVideo.remove();
       
@@ -457,6 +491,7 @@
       shareBtn.style.boxShadow = '';
       
       atualizarLayoutGrade();
+      document.body.classList.remove('streaming-jogo');
       socket.emit('stop-share');
     }
 
@@ -465,11 +500,12 @@
     function adicionarTracksComAltaQualidade(pc, stream) {
       stream.getTracks().forEach(track => {
         if (track.kind === 'video') {
-          // Hints de conteÃºdo: diz ao encoder que Ã© tela compartilhada
-          // (prioriza nitidez quando parado, fluidez quando em movimento)
+          // Hints de conteúdo por modo:
+          // JOGO: "motion" -> encoder prioriza fluidez, aceita leve desfoque em cenas rápidas
+          // TELA: "text" -> encoder prioriza nitidez de texto/detalhe
           try {
             if (track.contentHint !== undefined) {
-              track.contentHint = localStorage.getItem('hint-detalhe') === '1' ? 'detail' : 'text';
+              track.contentHint = isModoJogo() ? 'motion' : 'text';
             }
           } catch (e) {}
 
@@ -479,15 +515,19 @@
           while (parameters.encodings.length < 3) parameters.encodings.push({});
           
           const base = Math.floor(taxaDeBitsIdeal * 0.6);
-          // Camada alta, mÃ©dia (metade), baixa (1/4) â€” receptor escolhe sozinho
+          // Camada alta, média (metade), baixa (1/4) — receptor escolhe sozinho
           parameters.encodings[0].maxBitrate = base;
+          parameters.encodings[0].maxFramerate = fpsEscolhido;
           parameters.encodings[1].maxBitrate = Math.max(Math.floor(base * 0.5), 150000);
           parameters.encodings[1].scaleResolutionDownBy = 2;
+          parameters.encodings[1].maxFramerate = fpsEscolhido;
           parameters.encodings[2].maxBitrate = Math.max(Math.floor(base * 0.25), 80000);
           parameters.encodings[2].scaleResolutionDownBy = 4;
-          parameters.encodings[0].maxFramerate = fpsEscolhido;
+          parameters.encodings[2].maxFramerate = Math.floor(fpsEscolhido / 2);
           parameters.encodings[0].priority = 'high';
-          parameters.degradationPreference = 'maintain-framerate';
+          // JOGO: mantém FPS custe o que custar (derruba resolução se precisar)
+          // TELA: equilíbrio entre nitidez e fluidez
+          parameters.degradationPreference = isModoJogo() ? 'maintain-framerate' : 'balanced';
           
           sender.setParameters(parameters).catch(e => console.error(e));
         } else {
@@ -504,8 +544,6 @@
       let bitrateAtual; // teto atual deste envio
       let decrescimosConsecutivos = 0;
       const minimo = 400000;
-      const passoBaixa = 0.7;   // corta 30% quando detecta congestionamento
-      const passoAlta = 1.15;   // sobe 15% quando a rede estÃ¡ sobrando
       
       const ajustar = (novoBitrate, motivo) => {
         const sender = pc.getSenders().find(s => s.track?.kind === 'video');
@@ -535,7 +573,7 @@
           const dt = (agora - ultimo.t) / 1000;
           if (dt < 2) return;
 
-          // MÃ©tricas-chave
+          // Métricas-chave
           const kbps = ((out.bytesSent - ultimo.bytes) * 8) / dt / 1000;
           const pacotesPerdidos = out.packetsLost ?? 0;
           const totalPacotes = out.packetsSent ?? 0;
@@ -546,26 +584,36 @@
 
           if (bitrateAtual === undefined) bitrateAtual = Math.floor(taxaDeBitsIdeal * 0.6);
 
-          // Regra 1: perda de pacotes alta = congestionamento real, corta rÃ¡pido
-          if (taxaPerda > 0.05) {
+          // MODO JOGO: mais tolerante — cenas de ação geram picos NATURAIS de bitrate
+          // e reduzir qualidade por causa deles causa "puxões" visuais. Só reage a
+          // congestionamento REAL (perda de pacotes) e volta a subir devagar.
+          const jogo = isModoJogo();
+          const limiarPerda = jogo ? 0.08 : 0.05;
+          const limiarRTT = jogo ? 0.45 : 0.35;
+
+          // Regra 1: perda de pacotes alta = congestionamento real, corta rápido
+          if (taxaPerda > limiarPerda) {
             decrescimosConsecutivos++;
-            ajustar(Math.max(Math.floor((bitrateAtual || taxaDeBitsIdeal) * passoBaixa), minimo), `ðŸ”´ Perda ${(taxaPerda*100).toFixed(1)}% Â· reduzindo`);
+            const corte = decrescimosConsecutivos >= 2 ? 0.6 : 0.75; // segunda queda consecutiva corta mais fundo
+            ajustar(Math.max(Math.floor((bitrateAtual || taxaDeBitsIdeal) * corte), minimo), `🔴 Perda ${(taxaPerda*100).toFixed(1)}% · reduzindo`);
             return;
           }
           // Regra 2: RTT alto = caminho ruim, corta suave
-          if (rtt > 0.35) {
-            ajustar(Math.max(Math.floor((bitrateAtual || taxaDeBitsIdeal) * 0.85), minimo), `ðŸŸ¡ RTT ${(rtt*1000)|0}ms Â· ajustando`);
+          if (rtt > limiarRTT) {
+            ajustar(Math.max(Math.floor((bitrateAtual || taxaDeBitsIdeal) * 0.85), minimo), `🟡 RTT ${(rtt*1000)|0}ms · ajustando`);
             return;
           }
-          // Regra 3: FPS real desabou bem abaixo do alvo = encoder nÃ£o acompanha (CPU ou rede)
+          // Regra 3: FPS real desabou bem abaixo do alvo = encoder não acompanha (CPU ou rede)
           if (fpsReal > 0 && fpsReal < fpsEscolhido * 0.6) {
-            ajustar(Math.max(Math.floor((bitrateAtual || taxaDeBitsIdeal) * 0.8), minimo), `ðŸŸ¡ FPS ${(fpsReal).toFixed(0)} Â· aliviando encoder`);
+            ajustar(Math.max(Math.floor((bitrateAtual || taxaDeBitsIdeal) * 0.8), minimo), `🟡 FPS ${(fpsReal).toFixed(0)} · aliviando encoder`);
             return;
           }
           decrescimosConsecutivos = 0;
-          // Regra 4: rede saudÃ¡vel e enviando perto do teto = sobe gradualmente
+          // Regra 4: rede saudável e enviando perto do teto = sobe gradualmente
+          // No modo jogo sobe mais devagar (evita oscilar qualidade durante o gameplay)
+          const sobe = jogo ? 1.08 : 1.15;
           if (kbps > 0 && bitrateAtual < taxaDeBitsIdeal && kbps > bitrateAtual / 1000 * 0.9) {
-            ajustar(Math.min(Math.floor(bitrateAtual * passoAlta), taxaDeBitsIdeal), `ðŸŸ¢ Bem Â· subindo p/ ${(Math.min(Math.floor(bitrateAtual * passoAlta), taxaDeBitsIdeal)/1e6).toFixed(1)} Mbps`);
+            ajustar(Math.min(Math.floor(bitrateAtual * sobe), taxaDeBitsIdeal), `🟢 Bem · subindo p/ ${(Math.min(Math.floor(bitrateAtual * sobe), taxaDeBitsIdeal)/1e6).toFixed(1)} Mbps`);
           }
         } catch (e) { /* silencioso */ }
       }, 3000);
